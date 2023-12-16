@@ -1,11 +1,15 @@
 #include "common/clock.h"
 
+#include "absl/time/clock.h"
 #include "gtest/gtest.h"
 
 namespace {
 
-class ClockTest : public ::testing::Test {};
+using ::tsdb2::common::RealClock;
 
-// TODO
+TEST(ClockTest, TimeNow) {
+  auto const now = absl::Now();
+  EXPECT_GE(RealClock::GetInstance()->TimeNow(), now);
+}
 
 }  // namespace
