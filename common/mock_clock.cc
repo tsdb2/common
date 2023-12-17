@@ -3,6 +3,7 @@
 #include <memory>
 #include <utility>
 
+#include "absl/log/check.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 #include "common/simple_condition.h"
@@ -45,6 +46,19 @@ bool MockClock::AwaitWithDeadline(absl::Mutex* const mutex, absl::Condition cons
   auto const handle = const_cast<MockClock*>(this)->AddListener(std::move(listener));
   mutex->Await(SimpleCondition([&] { return current_time >= deadline || condition.Eval(); }));
   return condition.Eval();
+}
+
+void MockClock::SetTime(absl::Time const time) {
+  ListenerSet listeners;
+  {
+    absl::MutexLock lock{&mutex_};
+    CHECK_GE(time, current_time_) << "MockClock's time cannot move backward!";
+    current_time_ = time;
+    listeners_.swap(listeners);
+  }
+  for (auto const& listener : listeners) {
+    listener->Run(time);
+  }
 }
 
 void MockClock::AdvanceTime(absl::Duration const delta) {

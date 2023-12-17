@@ -27,9 +27,21 @@ class Clock {
   // Blocks the caller until the specified wake up time.
   virtual void SleepUntil(absl::Time wakeup_time) const = 0;
 
+  // Conditionally acquires `mutex` when either `condition` becomes true or the `timeout` has
+  // elapsed, whichever occurs first. Returns true iff acquisition resulted from the condition
+  // becoming true, otherwise it returns false.
+  //
+  // The implementation of this method from `RealClock` simply defers to `mutex->AwaitWithTimeout`,
+  // while the implementation from `MockClock` uses the simulated time.
   virtual bool AwaitWithTimeout(absl::Mutex* mutex, absl::Condition const& condition,
                                 absl::Duration timeout) const ABSL_SHARED_LOCKS_REQUIRED(mutex) = 0;
 
+  // Conditionally acquires `mutex` when either `condition` becomes true or the `deadline` has
+  // occurred, whichever occurs first. Returns true iff acquisition resulted from the condition
+  // becoming true, otherwise it returns false.
+  //
+  // The implementation of this method from `RealClock` simply defers to `mutex->AwaitWithDeadline`,
+  // while the implementation from `MockClock` uses the simulated time.
   virtual bool AwaitWithDeadline(absl::Mutex* mutex, absl::Condition const& condition,
                                  absl::Time deadline) const ABSL_SHARED_LOCKS_REQUIRED(mutex) = 0;
 };

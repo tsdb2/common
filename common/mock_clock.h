@@ -16,8 +16,8 @@ namespace tsdb2 {
 namespace common {
 
 // This `Clock` implementation allows creating test scenarios with simulated time. It never relies
-// on the real time: instead, it encapsulates a fake time that only changes in response to
-// `SetTime` or `AdvanceTime` calls.
+// on the real time: instead, it encapsulates a fake time that only changes in response to `SetTime`
+// or `AdvanceTime` calls.
 class MockClock : public Clock {
  public:
   explicit MockClock(absl::Time const current_time = absl::UnixEpoch())
@@ -34,6 +34,10 @@ class MockClock : public Clock {
 
   bool AwaitWithDeadline(absl::Mutex* mutex, absl::Condition const& condition,
                          absl::Time deadline) const override;
+
+  // Sets the fake time to the specified value. Checkfails if `time` is not greater than or equal to
+  // the current fake time.
+  void SetTime(absl::Time time) ABSL_LOCKS_EXCLUDED(mutex_);
 
   // Advances the fake time by the specified amount.
   void AdvanceTime(absl::Duration delta) ABSL_LOCKS_EXCLUDED(mutex_);
