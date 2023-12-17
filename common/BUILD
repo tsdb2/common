@@ -1,6 +1,20 @@
 package(default_visibility = ["//visibility:public"])
 
 cc_library(
+    name = "reffed_ptr",
+    hdrs = ["reffed_ptr.h"],
+)
+
+cc_test(
+    name = "reffed_ptr_test",
+    srcs = ["reffed_ptr_test.cc"],
+    deps = [
+        ":reffed_ptr",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "simple_condition",
     hdrs = ["simple_condition.h"],
     deps = [
