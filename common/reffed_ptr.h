@@ -13,7 +13,7 @@ namespace common {
 // such it has an intrusive API requiring that the wrapped object provides two methods called `Ref`
 // and `Unref`.
 //
-// This has three benefits:
+// This has multiple benefits:
 //
 // * Unlike `std::shared_ptr` there's no risk of keeping multiple separate reference counts because
 //   the target containing the reference count value is managed by the wrapped object rather than by
@@ -72,17 +72,28 @@ class reffed_ptr final {
     return *this;
   }
 
+  template <typename U>
+  reffed_ptr& operator=(U* const ptr) {
+    reset(ptr);
+    return *this;
+  }
+
+  // Releases and returns the wrapped pointer without unreffing it.
   T* release() {
     T* const ptr = ptr_;
     ptr_ = nullptr;
     return ptr;
   }
 
+  // Unrefs the wrapped pointer if it's not null and empties the `reffed_ptr`.
+  //
+  // This is the same as `reset(nullptr)`.
   void reset() {
     MaybeUnref();
     ptr_ = nullptr;
   }
 
+  // Unrefs the wrapped pointer if any and wraps the provided one, reffing it if not null.
   template <typename U>
   void reset(U* const ptr) {
     MaybeUnref();
@@ -90,13 +101,17 @@ class reffed_ptr final {
     MaybeRef();
   }
 
+  // Swaps two `reffed_ptr`s. No reference counts are changed.
   void swap(reffed_ptr& other) { std::swap(ptr_, other.ptr_); }
 
+  // Returns the wrapped raw pointer.
   T* get() const { return ptr_; }
 
+  // Dereference the wrapped pointer.
   T& operator*() const { return *ptr_; }
   T* operator->() const { return ptr_; }
 
+  // Returns `true` iff the wrapped pointer is != nullptr.
   explicit operator bool() const { return !!ptr_; }
 
   template <typename U>
@@ -146,6 +161,10 @@ class reffed_ptr final {
 };
 
 // Constructs a new object of type T and wraps it in a `reffed_ptr<T>`.
+//
+// WARNING: since the wrapped object is constructed using the `new` operator, the implementation of
+// `Unref` in the wrapped object MUST delete the object using the `delete` operator when the
+// reference count drops to zero, otherwise the object's memory gets leaked.
 template <typename T, typename... Args>
 reffed_ptr<T> MakeReffed(Args&&... args) {
   return reffed_ptr<T>(new T(std::forward<Args>(args)...));

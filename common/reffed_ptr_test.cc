@@ -6,6 +6,7 @@
 
 namespace {
 
+using ::tsdb2::common::MakeReffed;
 using ::tsdb2::common::reffed_ptr;
 
 class RefCounted {
@@ -159,6 +160,17 @@ TEST(ReffedPtrTest, AssignableMoveOperator) {
   EXPECT_FALSE(ptr1.operator bool());
 }
 
+TEST(ReffedPtrTest, PointerAssignmentOperator) {
+  RefCounted rc1;
+  reffed_ptr<RefCounted> ptr{&rc1};
+  Derived rc2;
+  ptr = &rc2;
+  EXPECT_EQ(ptr.get(), &rc2);
+  EXPECT_TRUE(ptr.operator bool());
+  EXPECT_EQ(rc1.ref_count(), 0);
+  EXPECT_EQ(rc2.ref_count(), 1);
+}
+
 TEST(ReffedPtrTest, Release) {
   RefCounted rc;
   reffed_ptr<RefCounted> ptr{&rc};
@@ -222,6 +234,32 @@ TEST(ReffedPtrTest, ComparisonOperators) {
   EXPECT_TRUE(ptr1 != ptr3);
   EXPECT_FALSE(ptr2 == ptr3);
   EXPECT_TRUE(ptr2 != ptr3);
+}
+
+class HeapRefCounted {
+ public:
+  explicit HeapRefCounted(int const label) : label_(label) {}
+
+  intptr_t ref_count() const { return ref_count_; }
+
+  void Ref() { ++ref_count_; }
+
+  void Unref() {
+    if (--ref_count_ < 1) {
+      delete this;
+    }
+  }
+
+  int label() const { return label_; }
+
+ private:
+  intptr_t ref_count_ = 1;
+  int const label_;
+};
+
+TEST(ReffedPtrTest, MakeReffed) {
+  auto ptr = MakeReffed<HeapRefCounted>(42);
+  EXPECT_EQ(ptr->label(), 42);
 }
 
 }  // namespace

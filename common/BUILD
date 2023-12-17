@@ -33,6 +33,24 @@ cc_test(
 )
 
 cc_library(
+    name = "blocking_ref_counted",
+    hdrs = ["blocking_ref_counted.h"],
+    deps = [
+        "@com_google_absl//absl/synchronization",
+    ],
+)
+
+cc_test(
+    name = "blocking_ref_counted_test",
+    srcs = ["blocking_ref_counted_test.cc"],
+    deps = [
+        ":blocking_ref_counted",
+        ":reffed_ptr",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "clock",
     srcs = ["clock.cc"],
     hdrs = ["clock.h"],
