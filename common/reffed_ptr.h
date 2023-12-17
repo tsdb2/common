@@ -22,11 +22,11 @@ namespace common {
 // * `reffed_ptr` allows implementing custom reference counting schemes, e.g. the destructor of the
 //   wrapped object may block until the reference count drops to zero (see `BlockingRefCounted`).
 template <typename T>
-class reffed_ptr {
+class reffed_ptr final {
  public:
-  constexpr reffed_ptr() : ptr_(nullptr) {}
+  reffed_ptr() : ptr_(nullptr) {}
 
-  constexpr reffed_ptr(std::nullptr_t) : ptr_(nullptr) {}
+  reffed_ptr(std::nullptr_t) : ptr_(nullptr) {}
 
   template <typename U>
   explicit reffed_ptr(U* const ptr) : ptr_(ptr) {
@@ -36,16 +36,14 @@ class reffed_ptr {
   reffed_ptr(reffed_ptr const& other) : ptr_(other.ptr_) { MaybeRef(); }
 
   template <typename U>
-  reffed_ptr(reffed_ptr<U> const& other) : ptr_(other.ptr_) {
+  reffed_ptr(reffed_ptr<U> const& other) : ptr_(other.get()) {
     MaybeRef();
   }
 
   reffed_ptr(reffed_ptr&& other) noexcept : ptr_(other.ptr_) { other.ptr_ = nullptr; }
 
   template <typename U>
-  reffed_ptr(reffed_ptr<U>&& other) noexcept : ptr_(other.ptr_) {
-    other.ptr_ = nullptr;
-  }
+  reffed_ptr(reffed_ptr<U>&& other) noexcept : ptr_(other.release()) {}
 
   ~reffed_ptr() { MaybeUnref(); }
 
@@ -56,7 +54,7 @@ class reffed_ptr {
 
   template <typename U>
   reffed_ptr& operator=(reffed_ptr<U> const& other) {
-    reset(other.ptr_);
+    reset(other.get());
     return *this;
   }
 
@@ -70,9 +68,14 @@ class reffed_ptr {
   template <typename U>
   reffed_ptr& operator=(reffed_ptr<U>&& other) noexcept {
     MaybeUnref();
-    ptr_ = other.ptr_;
-    other.ptr_ = nullptr;
+    ptr_ = other.release();
     return *this;
+  }
+
+  T* release() {
+    T* const ptr = ptr_;
+    ptr_ = nullptr;
+    return ptr;
   }
 
   void reset() {
@@ -96,34 +99,34 @@ class reffed_ptr {
 
   explicit operator bool() const { return !!ptr_; }
 
-  template <typename U, typename V>
-  friend bool operator==(reffed_ptr<U> const& lhs, reffed_ptr<V> const& rhs) {
-    return lhs.ptr_ == rhs.ptr_;
+  template <typename U>
+  friend bool operator==(reffed_ptr<T> const& lhs, reffed_ptr<U> const& rhs) {
+    return lhs.get() == rhs.get();
   }
 
-  template <typename U, typename V>
-  friend bool operator!=(reffed_ptr<U> const& lhs, reffed_ptr<V> const& rhs) {
-    return lhs.ptr_ != rhs.ptr_;
+  template <typename U>
+  friend bool operator!=(reffed_ptr<T> const& lhs, reffed_ptr<U> const& rhs) {
+    return lhs.get() != rhs.get();
   }
 
-  template <typename U, typename V>
-  friend bool operator<(reffed_ptr<U> const& lhs, reffed_ptr<V> const& rhs) {
-    return lhs.ptr_ < rhs.ptr_;
+  template <typename U>
+  friend bool operator<(reffed_ptr<T> const& lhs, reffed_ptr<U> const& rhs) {
+    return lhs.get() < rhs.get();
   }
 
-  template <typename U, typename V>
-  friend bool operator>(reffed_ptr<U> const& lhs, reffed_ptr<V> const& rhs) {
-    return lhs.ptr_ > rhs.ptr_;
+  template <typename U>
+  friend bool operator>(reffed_ptr<T> const& lhs, reffed_ptr<U> const& rhs) {
+    return lhs.get() > rhs.get();
   }
 
-  template <typename U, typename V>
-  friend bool operator<=(reffed_ptr<U> const& lhs, reffed_ptr<V> const& rhs) {
-    return lhs.ptr_ <= rhs.ptr_;
+  template <typename U>
+  friend bool operator<=(reffed_ptr<T> const& lhs, reffed_ptr<U> const& rhs) {
+    return lhs.get() <= rhs.get();
   }
 
-  template <typename U, typename V>
-  friend bool operator>=(reffed_ptr<U> const& lhs, reffed_ptr<V> const& rhs) {
-    return lhs.ptr_ >= rhs.ptr_;
+  template <typename U>
+  friend bool operator>=(reffed_ptr<T> const& lhs, reffed_ptr<U> const& rhs) {
+    return lhs.get() >= rhs.get();
   }
 
  private:
