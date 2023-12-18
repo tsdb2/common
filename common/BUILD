@@ -1,6 +1,20 @@
 package(default_visibility = ["//visibility:public"])
 
 cc_library(
+    name = "murmur3",
+    hdrs = ["murmur3.h"],
+)
+
+cc_test(
+    name = "murmur3_test",
+    srcs = ["murmur3_test.cc"],
+    deps = [
+        ":murmur3",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "reffed_ptr",
     hdrs = ["reffed_ptr.h"],
 )

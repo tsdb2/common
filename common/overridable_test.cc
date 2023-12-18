@@ -77,7 +77,9 @@ TEST(OverridableTest, MoveScopedOverridable) {
   Overridable<TestClass> instance{"foo"};
   ScopedOverride so1{&instance, "bar"};
   {
-    ScopedOverride so2 = std::move(so1);
+    Overridable<TestClass> dummy{""};
+    ScopedOverride so2{&dummy, ""};
+    so2 = std::move(so1);
     EXPECT_EQ(instance->label(), "bar");
   }
   EXPECT_EQ(instance->label(), "foo");
