@@ -51,6 +51,25 @@ cc_test(
 )
 
 cc_library(
+    name = "overridable",
+    hdrs = ["overridable.h"],
+    deps = [
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/synchronization",
+    ],
+)
+
+cc_test(
+    name = "overridable_test",
+    srcs = ["overridable_test.cc"],
+    deps = [
+        ":overridable",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "clock",
     srcs = ["clock.cc"],
     hdrs = ["clock.h"],

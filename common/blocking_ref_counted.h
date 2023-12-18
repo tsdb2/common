@@ -1,7 +1,7 @@
 #ifndef __TSDB2_COMMON_BLOCKING_REF_COUNTED_H__
 #define __TSDB2_COMMON_BLOCKING_REF_COUNTED_H__
 
-#include <cstddef>
+#include <cstdint>
 #include <utility>
 
 #include "absl/synchronization/mutex.h"
@@ -45,7 +45,7 @@ namespace common {
 //
 // NOTE: `BlockingRefCounted` REQUIRES that the wrapped type T has a virtual destructor.
 template <typename T>
-class BlockingRefCounted : public T {
+class BlockingRefCounted final : public T {
  public:
   // Perfect-fowards all arguments to the corresponding T constructor.
   template <typename... Args>
