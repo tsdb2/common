@@ -67,6 +67,7 @@ class FingerprintBase {
 
   // Hashes a text string.
   uint32_t HashString(std::string_view const value) {
+    Add(value.size());
     auto const data = reinterpret_cast<uint8_t const*>(value.data());
     auto const main_chunk = value.size() >> 2;
     Add(reinterpret_cast<uint32_t const*>(data), main_chunk);
@@ -80,15 +81,11 @@ class FingerprintBase {
   }
 
  private:
-  static constexpr uint32_t Scramble(uint32_t k) {
+  constexpr void AddInternal(uint32_t k) {
     k *= 0xcc9e2d51;
     k = (k << 15) | (k >> 17);
     k *= 0x1b873593;
-    return k;
-  }
-
-  constexpr void AddInternal(uint32_t const k) {
-    hash_ ^= Scramble(k);
+    hash_ ^= k;
     hash_ = (hash_ << 13) | (hash_ >> 19);
     hash_ = hash_ * 5 + 0xe6546b64;
   }
