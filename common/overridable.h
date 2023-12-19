@@ -27,6 +27,10 @@ class Overridable {
   explicit Overridable(Args&&... args) : value_(std::forward<Args>(args)...) {}
 
   // TEST ONLY: replace the wrapped value with a different one.
+  //
+  // WARNING: any previously existing override will be destroyed. Because of that, it is the
+  // caller's responsibility to ensure that no references to it exist any more before calling this
+  // method.
   template <typename... Args>
   void Override(Args&&... args) ABSL_LOCKS_EXCLUDED(mutex_) {
     absl::MutexLock lock{&mutex_};
@@ -45,6 +49,9 @@ class Overridable {
   }
 
   // TEST ONLY: restore the original value and destroy the override, if any.
+  //
+  // WARNING: since the override will be destroyed, it is the caller's responsibility to ensure that
+  // no references to it exist any more before calling this method.
   void Restore() ABSL_LOCKS_EXCLUDED(mutex_) {
     absl::MutexLock lock{&mutex_};
     override_.reset();
@@ -53,7 +60,7 @@ class Overridable {
 
   // Retrieve the wrapped value.
   T* Get() const ABSL_LOCKS_EXCLUDED(mutex_) {
-    if (ABSL_PREDICT_FALSE(overridden_.load(std::memory_order_acquire))) {
+    if (ABSL_PREDICT_FALSE(overridden_.load(std::memory_order_relaxed))) {
       absl::MutexLock lock{&mutex_};
       if (override_) {
         return const_cast<T*>(&*override_);
