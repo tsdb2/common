@@ -15,9 +15,6 @@ size_t constexpr kTextLength = sizeof(kText) - 1;
 
 class MurmurHash3SeededTest : public ::testing::TestWithParam<uint32_t> {};
 
-uint32_t constexpr kSeed = 0x12345678;
-uint32_t constexpr kConstexprHash = MurmurHash3_32::Hash(kText, kTextLength, kSeed);
-
 TEST_P(MurmurHash3SeededTest, Hash) {
   MurmurHash3_32 hasher{GetParam()};
   hasher.Add(kText, kTextLength);
@@ -27,12 +24,6 @@ TEST_P(MurmurHash3SeededTest, Hash) {
 TEST(MurmurHash3Test, DifferentSeeds) {
   EXPECT_NE(MurmurHash3_32::Hash(kText, kTextLength, 12345),
             MurmurHash3_32::Hash(kText, kTextLength, 71104));
-}
-
-TEST(MurmurHash3Test, ConstexprHash) {
-  MurmurHash3_32 hasher{kSeed};
-  hasher.Add(kText, kTextLength);
-  EXPECT_EQ(kConstexprHash, hasher.Finish());
 }
 
 TEST_P(MurmurHash3SeededTest, SingleAddCall) {

@@ -27,14 +27,13 @@ namespace common {
 class MurmurHash3_32 final {
  public:
   // Hashes the content of the provided buffer using the provided seed.
-  static constexpr uint32_t Hash(uint8_t const* const buffer, size_t const length,
-                                 uint32_t const seed) {
+  static uint32_t Hash(void const* const buffer, size_t const length, uint32_t const seed) {
     MurmurHash3_32 hasher{seed};
     hasher.Add(buffer, length);
     return hasher.Finish();
   }
 
-  constexpr explicit MurmurHash3_32(uint32_t const seed) : hash_(seed) {}
+  explicit MurmurHash3_32(uint32_t const seed) : hash_(seed) {}
 
   MurmurHash3_32(MurmurHash3_32 const&) = default;
   MurmurHash3_32& operator=(MurmurHash3_32 const&) = default;
@@ -42,53 +41,21 @@ class MurmurHash3_32 final {
   MurmurHash3_32& operator=(MurmurHash3_32&&) noexcept = default;
 
   // Adds the provided data to the hash calculation. The buffer can be discarded when `Add` returns.
-  constexpr void Add(uint8_t const* const buffer, size_t const length) {
-    auto const total_bytes = remainder_.size + length;
-    size_t i = 0;
-    for (; i + 3 < total_bytes; i += 4) {
-      uint32_t k = ReadByte(buffer, i + 3);
-      k = (k << 8) + ReadByte(buffer, i + 2);
-      k = (k << 8) + ReadByte(buffer, i + 1);
-      k = (k << 8) + ReadByte(buffer, i);
-      hash_ ^= Scramble(k);
-      hash_ = (hash_ << 13) | (hash_ >> 19);
-      hash_ = hash_ * 5 + 0xe6546b64;
-    }
-    length_ += length;
-    size_t const j = i;
-    for (; i < total_bytes; ++i) {
-      remainder_.bytes[i - j] = ReadByte(buffer, i);
-    }
-    remainder_.size = total_bytes - j;
-  }
+  void Add(void const* buffer, size_t length);
 
   // Finishes the calculation and returns the resulting hash.
-  constexpr uint32_t Finish() {
-    uint32_t k = 0;
-    for (size_t i = remainder_.size; i; --i) {
-      k = (k << 8) + remainder_.bytes[i - 1];
-      ++length_;
-    }
-    hash_ ^= Scramble(k);
-    hash_ ^= length_;
-    hash_ ^= hash_ >> 16;
-    hash_ *= 0x85ebca6b;
-    hash_ ^= hash_ >> 13;
-    hash_ *= 0xc2b2ae35;
-    hash_ ^= hash_ >> 16;
-    return hash_;
-  }
+  uint32_t Finish();
 
  private:
-  constexpr uint8_t ReadByte(uint8_t const* const buffer, size_t const i) {
+  uint8_t ReadByte(void const* const buffer, size_t const i) {
     if (i < remainder_.size) {
       return remainder_.bytes[i];
     } else {
-      return buffer[i - remainder_.size];
+      return static_cast<uint8_t const*>(buffer)[i - remainder_.size];
     }
   }
 
-  static constexpr uint32_t Scramble(uint32_t k) {
+  static uint32_t Scramble(uint32_t k) {
     k *= 0xcc9e2d51;
     k = (k << 15) | (k >> 17);
     k *= 0x1b873593;

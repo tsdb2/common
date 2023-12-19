@@ -18,6 +18,11 @@ namespace common {
 // This `Clock` implementation allows creating test scenarios with simulated time. It never relies
 // on the real time: instead, it encapsulates a fake time that only changes in response to `SetTime`
 // or `AdvanceTime` calls.
+//
+// Advancements of the fake time are correctly reflected in all public methods; as such, they may
+// unblock `Sleep*` and `Await*` calls from other threads.
+//
+// This class is thread-safe.
 class MockClock : public Clock {
  public:
   explicit MockClock(absl::Time const current_time = absl::UnixEpoch())
@@ -59,7 +64,20 @@ class MockClock : public Clock {
 
   class ListenerHandle final {
    public:
-    ~ListenerHandle() { parent_->RemoveListener(listener_); }
+    ~ListenerHandle() { MaybeRemove(); }
+
+    ListenerHandle(ListenerHandle&& other) noexcept
+        : parent_(other.parent_), listener_(std::move(other.listener_)) {
+      other.parent_ = nullptr;
+    }
+
+    ListenerHandle& operator=(ListenerHandle&& other) noexcept {
+      MaybeRemove();
+      parent_ = other.parent_;
+      listener_ = std::move(other.listener_);
+      other.parent_ = nullptr;
+      return *this;
+    }
 
    private:
     friend class MockClock;
@@ -70,8 +88,11 @@ class MockClock : public Clock {
     ListenerHandle(ListenerHandle const&) = delete;
     ListenerHandle& operator=(ListenerHandle const&) = delete;
 
-    ListenerHandle(ListenerHandle&&) noexcept = default;
-    ListenerHandle& operator=(ListenerHandle&&) noexcept = default;
+    void MaybeRemove() {
+      if (parent_) {
+        parent_->RemoveListener(listener_);
+      }
+    }
 
     MockClock* parent_;
     std::shared_ptr<TimeListener> listener_;

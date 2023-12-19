@@ -2,6 +2,7 @@ package(default_visibility = ["//visibility:public"])
 
 cc_library(
     name = "murmur3",
+    srcs = ["murmur3.cc"],
     hdrs = ["murmur3.h"],
 )
 
@@ -10,6 +11,21 @@ cc_test(
     srcs = ["murmur3_test.cc"],
     deps = [
         ":murmur3",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "fingerprint",
+    hdrs = ["fingerprint.h"],
+    deps = [":murmur3"],
+)
+
+cc_test(
+    name = "fingerprint_test",
+    srcs = ["fingerprint_test.cc"],
+    deps = [
+        ":fingerprint",
         "@com_google_googletest//:gtest_main",
     ],
 )
