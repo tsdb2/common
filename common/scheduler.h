@@ -28,7 +28,7 @@ class Scheduler {
 
     // If `true` the constructor calls `Start()` right away, otherwise you need to call it manually.
     // You need to set this to `false` e.g. when instantiating a Scheduler in global scope, so that
-    // it doesn't spin up its workers threads right away.
+    // it doesn't spin up its worker threads right away.
     bool start_now = true;
   };
 

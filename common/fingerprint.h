@@ -50,13 +50,14 @@
 #include <tuple>
 #include <type_traits>
 #include <utility>
+#include <variant>
 
 template <typename State, typename Integer>
 constexpr State Tsdb2FingerprintValue(State state, Integer const value,
                                       std::enable_if_t<std::is_integral_v<Integer>, bool> = true) {
   if constexpr (sizeof(Integer) > sizeof(uint32_t)) {
     static_assert(sizeof(Integer) % sizeof(uint32_t) == 0, "unsupported type");
-    return state.Add(&value, sizeof(Integer) / sizeof(uint32_t));
+    return state.Add(reinterpret_cast<uint32_t const*>(&value), sizeof(Integer) / sizeof(uint32_t));
   } else {
     return state.Add(value);
   }
@@ -90,7 +91,7 @@ State Tsdb2FingerprintValue(State state, std::string_view const value) {
 }
 
 template <typename State, typename Pointee>
-State Tsdb2FingerprintValue(State state, Pointee* const value) {
+constexpr State Tsdb2FingerprintValue(State state, Pointee* const value) {
   state.Add(value != nullptr);
   if (value) {
     return Tsdb2FingerprintValue(std::move(state), *value);
@@ -100,12 +101,21 @@ State Tsdb2FingerprintValue(State state, Pointee* const value) {
 }
 
 template <typename State>
-State Tsdb2FingerprintValue(State state, std::nullptr_t) {
+constexpr State Tsdb2FingerprintValue(State state, std::nullptr_t) {
   return state.Add(false);
 }
 
+template <typename State>
+constexpr State Tsdb2FingerprintValue(State state, char const value[]) {
+  if (value) {
+    return Tsdb2FingerprintValue(std::move(state), std::string_view(value));
+  } else {
+    return Tsdb2FingerprintValue(std::move(state), "");
+  }
+}
+
 template <typename State, typename... Values>
-State Tsdb2FingerprintValue(State state, std::tuple<Values...> const& value) {
+constexpr State Tsdb2FingerprintValue(State state, std::tuple<Values...> const& value) {
   return std::apply(
       [state = std::move(state)](auto const&... elements) mutable {
         return ((state = Tsdb2FingerprintValue(std::move(state), elements)), ...);
@@ -114,7 +124,7 @@ State Tsdb2FingerprintValue(State state, std::tuple<Values...> const& value) {
 }
 
 template <typename State, typename Optional>
-State Tsdb2FingerprintValue(State state, std::optional<Optional> const& value) {
+constexpr State Tsdb2FingerprintValue(State state, std::optional<Optional> const& value) {
   state.Add(value.has_value());
   if (value) {
     return Tsdb2FingerprintValue(std::move(state), *value);
@@ -124,8 +134,18 @@ State Tsdb2FingerprintValue(State state, std::optional<Optional> const& value) {
 }
 
 template <typename State>
-State Tsdb2FingerprintValue(State state, std::nullopt_t const&) {
+constexpr State Tsdb2FingerprintValue(State state, std::nullopt_t const&) {
   return state.Add(false);
+}
+
+template <typename State, typename... Values>
+constexpr State Tsdb2FingerprintValue(State state, std::variant<Values...> const& value) {
+  state.Add(value.index());
+  return std::visit(
+      [state = std::move(state)](auto const& value) mutable {
+        return Tsdb2FingerprintValue(std::move(state), value);
+      },
+      value);
 }
 
 namespace tsdb2 {
