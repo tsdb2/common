@@ -1,18 +1,120 @@
+// This header provides a generic fingerprinting framework similar to Abseil's hashing framework.
+// The main difference between hashing and fingerprinting is that the latter uses a predefined
+// constant seed, so fingerprints never change. By contrast, Abseil's hashing framework uses an
+// internal seed value that is calculated randomly at every process restart and cannot be changed by
+// the user.
+//
+// WARNING: because of the above, fingerprinting is NOT suitable for use in hash table data
+// structures. Doing so would expose them to DoS attacks because, knowing the seed, an attacker can
+// precalculate large amounts of collisions and flood the hash table with colliding data, degrading
+// its performance and turning it into a list. Note that finding collisions in a hash table with a
+// given hash algorithm is easier than finding collisions in the hash algorithm itself because the
+// hash table has limited size and therefore uses some modulo of a hash value; that significantly
+// restricts the space across which an attacker searches for collisions.
+//
+// Despite the above weakness, fingerprinting is still useful to generate deterministic
+// pseudo-random numbers based on some data. TSDB2 uses it to avoid RPC spikes by scattering RPC
+// fire times across a time window, for example.
+//
+// This fingerprinting framework uses a 32-bit Murmur 3 hash, which is non-cryptographic but very
+// fast. See https://en.wikipedia.org/wiki/MurmurHash for more information. To improve speed even
+// further, we use the algorithm in a way that avoids all unaligned reads. Thanks to that we can
+// read the input data 32 bits at a time rather than 1 byte at a time.
 #ifndef __TSDB2_COMMON_FINGERPRINT_H__
 #define __TSDB2_COMMON_FINGERPRINT_H__
 
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <optional>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <type_traits>
 #include <utility>
+
+template <typename State, typename Integer>
+constexpr State Tsdb2FingerprintValue(State state, Integer const value,
+                                      std::enable_if_t<std::is_integral_v<Integer>, bool> = true) {
+  if constexpr (sizeof(Integer) > sizeof(uint32_t)) {
+    static_assert(sizeof(Integer) % sizeof(uint32_t) == 0, "unsupported type");
+    return state.Add(&value, sizeof(Integer) / sizeof(uint32_t));
+  } else {
+    return state.Add(value);
+  }
+}
+
+template <typename State, typename Float>
+constexpr State Tsdb2FingerprintValue(
+    State state, Float const value,
+    std::enable_if_t<std::is_floating_point_v<Float>, bool> = true) {
+  if constexpr (sizeof(Float) > sizeof(uint32_t)) {
+    static_assert(sizeof(Float) % sizeof(uint32_t) == 0, "unsupported type");
+    return state.Add(reinterpret_cast<uint32_t const*>(&value), sizeof(Float) / sizeof(uint32_t));
+  } else {
+    return state.Add(value);
+  }
+}
+
+template <typename State>
+State Tsdb2FingerprintValue(State state, std::string_view const value) {
+  state.Add(value.size());
+  auto const data = reinterpret_cast<uint8_t const*>(value.data());
+  auto const main_chunk_size = value.size() >> 2;
+  state.Add(reinterpret_cast<uint32_t const*>(data), main_chunk_size);
+  auto const remainder = value.size() % 4;
+  if (remainder > 0) {
+    uint32_t last = 0;
+    std::memcpy(&last, data + (main_chunk_size << 2), remainder);
+    return state.Add(last);
+  }
+  return state;
+}
+
+template <typename State, typename Pointee>
+State Tsdb2FingerprintValue(State state, Pointee* const value) {
+  state.Add(value != nullptr);
+  if (value) {
+    return Tsdb2FingerprintValue(std::move(state), *value);
+  } else {
+    return state;
+  }
+}
+
+template <typename State>
+State Tsdb2FingerprintValue(State state, std::nullptr_t) {
+  return state.Add(false);
+}
+
+template <typename State, typename... Values>
+State Tsdb2FingerprintValue(State state, std::tuple<Values...> const& value) {
+  return std::apply(
+      [state = std::move(state)](auto const&... elements) mutable {
+        return ((state = Tsdb2FingerprintValue(std::move(state), elements)), ...);
+      },
+      value);
+}
+
+template <typename State, typename Optional>
+State Tsdb2FingerprintValue(State state, std::optional<Optional> const& value) {
+  state.Add(value.has_value());
+  if (value) {
+    return Tsdb2FingerprintValue(std::move(state), *value);
+  } else {
+    return state;
+  }
+}
+
+template <typename State>
+State Tsdb2FingerprintValue(State state, std::nullopt_t const&) {
+  return state.Add(false);
+}
 
 namespace tsdb2 {
 namespace common {
 
-uint32_t constexpr kSeed = 71104;
+template <typename Value>
+struct Fingerprint;
 
 namespace internal {
 
@@ -23,22 +125,37 @@ namespace internal {
 // This implementation uses the fixed seed value defined above and is only suitable for
 // fingerprinting, not for general-purpose hashing.
 //
-// Objects of this class expect zero or more `Add` calls and one final `Finish` call. The `Hash*`
-// methods are shorthands for a series of `Add` calls followed by a `Finish`.
+// Objects of this class expect zero or more `Add` calls and one final `Finish` call. The `Hash`
+// method is a shorthand for an `Add` call followed by a `Finish`.
 //
 // WARNING: Calling `Add` after `Finish` or calling `Finish` multiple times leads to undefined
 // behavior. It is okay to call `Finish` without calling `Add` at all.
-class FingerprintBase {
+class FingerprintState {
  public:
+  explicit FingerprintState() = default;
+
+  FingerprintState(FingerprintState const&) = default;
+  FingerprintState& operator=(FingerprintState const&) = default;
+  FingerprintState(FingerprintState&&) noexcept = default;
+  FingerprintState& operator=(FingerprintState&&) noexcept = default;
+
+  // Hashes the provided arguments into `state`. This function allows hashing structured types
+  // recursively without having to call `Add` and decomposing the structured contents into 32-bit
+  // words manually.
+  template <typename State, typename... Args>
+  static constexpr FingerprintState& Combine(State state, Args&&... args) {
+    return Tsdb2FingerprintValue(std::move(state), std::tie(std::forward<Args>(args)...));
+  }
+
   // Adds the provided 32-bit word to the hash calculation.
-  constexpr FingerprintBase& Add(uint32_t const k) {
+  constexpr FingerprintState& Add(uint32_t const k) {
     AddInternal(k);
     ++length_;
     return *this;
   }
 
   // Adds the provided 32-bit words to the hash calculation.
-  constexpr FingerprintBase& Add(uint32_t const* const ks, size_t const count) {
+  constexpr FingerprintState& Add(uint32_t const* const ks, size_t const count) {
     for (size_t i = 0; i < count; ++i) {
       AddInternal(ks[i]);
     }
@@ -65,21 +182,6 @@ class FingerprintBase {
     return Add(ks, count).Finish();
   }
 
-  // Hashes a text string.
-  uint32_t HashString(std::string_view const value) {
-    Add(value.size());
-    auto const data = reinterpret_cast<uint8_t const*>(value.data());
-    auto const main_chunk = value.size() >> 2;
-    Add(reinterpret_cast<uint32_t const*>(data), main_chunk);
-    auto const remainder = value.size() % 4;
-    if (remainder > 0) {
-      uint32_t last = 0;
-      std::memcpy(&last, data + (main_chunk << 2), remainder);
-      Add(last);
-    }
-    return Finish();
-  }
-
  private:
   constexpr void AddInternal(uint32_t k) {
     k *= 0xcc9e2d51;
@@ -90,69 +192,39 @@ class FingerprintBase {
     hash_ = hash_ * 5 + 0xe6546b64;
   }
 
+  static uint32_t constexpr kSeed = 71104;
+
   uint32_t hash_ = kSeed;
   uint32_t length_ = 0;
 };
 
 }  // namespace internal
 
-template <typename T, typename Enable = void>
-struct Fingerprint;
-
-template <typename T>
-constexpr uint32_t FingerprintOf(T&& value) {
-  return Fingerprint<std::decay_t<T>>{}(std::forward<T>(value));
-}
-
-template <typename T>
-struct Fingerprint<T, std::enable_if_t<std::is_integral_v<T>>> : private internal::FingerprintBase {
-  constexpr uint32_t operator()(T const value) {
-    if constexpr (sizeof(T) > sizeof(uint32_t)) {
-      static_assert(sizeof(T) % sizeof(uint32_t) == 0, "unsupported type");
-      return Hash(reinterpret_cast<uint32_t const*>(&value), sizeof(T) / sizeof(uint32_t));
-    } else {
-      return Hash(value);
-    }
+template <typename Value>
+struct Fingerprint {
+  constexpr uint32_t operator()(Value const& value) const {
+    return Tsdb2FingerprintValue(internal::FingerprintState(), value).Finish();
   }
 };
+
+namespace {
 
 uint32_t constexpr kFalseFingerprint = Fingerprint<uint32_t>{}(false);
 uint32_t constexpr kTrueFingerprint = Fingerprint<uint32_t>{}(true);
 
+}  // namespace
+
 template <>
-struct Fingerprint<bool> : private internal::FingerprintBase {
-  constexpr uint32_t operator()(bool const value) {
+struct Fingerprint<bool> {
+  constexpr uint32_t operator()(bool const value) const {
     return value ? kTrueFingerprint : kFalseFingerprint;
   }
 };
 
-template <typename T>
-struct Fingerprint<T, std::enable_if_t<std::is_floating_point_v<T>>>
-    : private internal::FingerprintBase {
-  constexpr uint32_t operator()(T const value) {
-    if constexpr (sizeof(T) > sizeof(uint32_t)) {
-      static_assert(sizeof(T) % sizeof(uint32_t) == 0, "unsupported type");
-      return Hash(reinterpret_cast<uint32_t const*>(&value), sizeof(T) / sizeof(uint32_t));
-    } else {
-      return Hash(value);
-    }
-  }
-};
-
-template <>
-struct Fingerprint<std::string> : private internal::FingerprintBase {
-  uint32_t operator()(std::string_view const value) { return HashString(value); }
-};
-
-template <>
-struct Fingerprint<std::string_view> : private internal::FingerprintBase {
-  uint32_t operator()(std::string_view const value) { return HashString(value); }
-};
-
-template <>
-struct Fingerprint<char const*> : private internal::FingerprintBase {
-  uint32_t operator()(std::string_view const value) { return HashString(value); }
-};
+template <typename Value>
+constexpr uint32_t FingerprintOf(Value&& value) {
+  return Fingerprint<std::decay_t<Value>>{}(std::forward<Value>(value));
+}
 
 // TODO: inductive types.
 
