@@ -169,7 +169,10 @@ cc_library(
     deps = [
         ":clock",
         ":sequence_number",
+        "@com_google_absl//absl/container:node_hash_set",
         "@com_google_absl//absl/functional:any_invocable",
+        "@com_google_absl//absl/functional:bind_front",
+        "@com_google_absl//absl/hash",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
     ],
