@@ -1,5 +1,5 @@
-#ifndef __TSDB2_COMMON_MOCK_CLOCK_H__
-#define __TSDB2_COMMON_MOCK_CLOCK_H__
+#ifndef __TSDB2_COMMON_REFFED_PTR_H__
+#define __TSDB2_COMMON_REFFED_PTR_H__
 
 #include <algorithm>
 #include <cstddef>
@@ -173,4 +173,4 @@ reffed_ptr<T> MakeReffed(Args&&... args) {
 }  // namespace common
 }  // namespace tsdb2
 
-#endif  // __TSDB2_COMMON_MOCK_CLOCK_H__
+#endif  // __TSDB2_COMMON_REFFED_PTR_H__
