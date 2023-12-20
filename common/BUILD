@@ -45,6 +45,20 @@ cc_test(
 )
 
 cc_library(
+    name = "sequence_number",
+    hdrs = ["sequence_number.h"],
+)
+
+cc_test(
+    name = "sequence_number_test",
+    srcs = ["sequence_number_test.cc"],
+    deps = [
+        ":sequence_number",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "simple_condition",
     hdrs = ["simple_condition.h"],
     deps = [
@@ -144,6 +158,29 @@ cc_test(
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "scheduler",
+    srcs = ["scheduler.cc"],
+    hdrs = ["scheduler.h"],
+    deps = [
+        ":clock",
+        ":sequence_number",
+        "@com_google_absl//absl/functional:any_invocable",
+        "@com_google_absl//absl/synchronization",
+        "@com_google_absl//absl/time",
+    ],
+)
+
+cc_test(
+    name = "scheduler_test",
+    srcs = ["scheduler_test.cc"],
+    deps = [
+        ":mock_clock",
+        ":scheduler",
         "@com_google_googletest//:gtest_main",
     ],
 )

@@ -4,8 +4,28 @@
 #include <string>
 #include <string_view>
 #include <tuple>
+#include <utility>
 
 #include "gtest/gtest.h"
+
+namespace foo {
+
+class TestClass {
+ public:
+  explicit TestClass(std::string_view const x, int const y, bool const z) : x_(x), y_(y), z_(z) {}
+
+  template <typename State>
+  friend State Tsdb2FingerprintValue(State state, TestClass const& value) {
+    return State::Combine(std::move(state), value.x_, value.y_, value.z_);
+  }
+
+ private:
+  std::string x_;
+  int y_;
+  bool z_;
+};
+
+}  // namespace foo
 
 namespace {
 
@@ -45,7 +65,7 @@ TEST(FingerprintTest, CharacterArrays) {
   EXPECT_NE(FingerprintOf("lorem ipsum"), FingerprintOf("dolor amet"));
 }
 
-TEST(FungerprintTest, Pointers) {
+TEST(FingerprintTest, Pointers) {
   std::string const s1 = "foo";
   std::string const s2 = "bar";
   std::string const* const p = nullptr;
@@ -67,7 +87,7 @@ TEST(FingerprintTest, Tuples) {
   EXPECT_NE(FingerprintOf(std::tie(s, i, b, f)), FingerprintOf(std::tie(s, i, b)));
 }
 
-TEST(FungerprintTest, Optionals) {
+TEST(FingerprintTest, Optionals) {
   std::optional<std::string> const s1 = "foo";
   std::optional<std::string> const s2 = "bar";
   std::optional<std::string> const s3 = std::nullopt;
@@ -79,6 +99,10 @@ TEST(FungerprintTest, Optionals) {
   EXPECT_NE(FingerprintOf(s1), FingerprintOf(i));
 }
 
-// TODO
+TEST(FingerprintTest, CustomObject) {
+  ::foo::TestClass value{"foo", 42, true};
+  EXPECT_EQ(FingerprintOf(value), FingerprintOf(::foo::TestClass("foo", 42, true)));
+  EXPECT_NE(FingerprintOf(value), FingerprintOf(::foo::TestClass("bar", 43, false)));
+}
 
 }  // namespace

@@ -10,7 +10,7 @@
 // its performance and turning it into a list. Note that finding collisions in a hash table with a
 // given hash algorithm is easier than finding collisions in the hash algorithm itself because the
 // hash table has limited size and therefore uses some modulo of a hash value; that significantly
-// restricts the space across which an attacker searches for collisions.
+// restricts the space across which an attacker needs to find collisions.
 //
 // Despite the above weakness, fingerprinting is still useful to generate deterministic
 // pseudo-random numbers based on some data. TSDB2 uses it to avoid RPC spikes by scattering RPC
@@ -20,6 +20,24 @@
 // fast. See https://en.wikipedia.org/wiki/MurmurHash for more information. To improve speed even
 // further, we use the algorithm in a way that avoids all unaligned reads. Thanks to that we can
 // read the input data 32 bits at a time rather than 1 byte at a time.
+//
+// Similarly to Abseil's hashing framework, custom types can be made hashable by adding a friend
+// function called `Tsdb2FingerprintValue`, like in the following example:
+//
+//   class Point {
+//    public:
+//     explicit Point(double const x, double const y) : x_(x), y_(y) {}
+//
+//     template <typename State>
+//     friend State Tsdb2FingerprintValue(State state, Point const& point) {
+//       return State::Combine(std::move(state), point.x_, point.y_);
+//     }
+//
+//    private:
+//     double x_;
+//     double y_;
+//   };
+//
 #ifndef __TSDB2_COMMON_FINGERPRINT_H__
 #define __TSDB2_COMMON_FINGERPRINT_H__
 
@@ -142,9 +160,9 @@ class FingerprintState {
   // Hashes the provided arguments into `state`. This function allows hashing structured types
   // recursively without having to call `Add` and decomposing the structured contents into 32-bit
   // words manually.
-  template <typename State, typename... Args>
-  static constexpr FingerprintState& Combine(State state, Args&&... args) {
-    return Tsdb2FingerprintValue(std::move(state), std::tie(std::forward<Args>(args)...));
+  template <typename... Values>
+  static constexpr FingerprintState Combine(FingerprintState state, Values const&... values) {
+    return Tsdb2FingerprintValue(std::move(state), std::tie(values...));
   }
 
   // Adds the provided 32-bit word to the hash calculation.
@@ -225,8 +243,6 @@ template <typename Value>
 constexpr uint32_t FingerprintOf(Value&& value) {
   return Fingerprint<std::decay_t<Value>>{}(std::forward<Value>(value));
 }
-
-// TODO: inductive types.
 
 }  // namespace common
 }  // namespace tsdb2
