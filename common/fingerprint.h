@@ -64,15 +64,11 @@ constexpr State Tsdb2FingerprintValue(State state, Integer const value,
 }
 
 template <typename State, typename Float>
-constexpr State Tsdb2FingerprintValue(
-    State state, Float const value,
-    std::enable_if_t<std::is_floating_point_v<Float>, bool> = true) {
-  if constexpr (sizeof(Float) > sizeof(uint32_t)) {
-    static_assert(sizeof(Float) % sizeof(uint32_t) == 0, "unsupported type");
-    return state.Add(reinterpret_cast<uint32_t const*>(&value), sizeof(Float) / sizeof(uint32_t));
-  } else {
-    return state.Add(value);
-  }
+State Tsdb2FingerprintValue(State state, Float const value,
+                            std::enable_if_t<std::is_floating_point_v<Float>, bool> = true) {
+  static_assert(sizeof(Float) >= sizeof(uint32_t) && sizeof(Float) % sizeof(uint32_t) == 0,
+                "unsupported type");
+  return state.Add(reinterpret_cast<uint32_t const*>(&value), sizeof(Float) / sizeof(uint32_t));
 }
 
 template <typename State>

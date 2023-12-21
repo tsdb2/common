@@ -40,8 +40,6 @@ auto constexpr kUint8Fingerprint = FingerprintOf(uint8_t{42});
 auto constexpr kUint16Fingerprint = FingerprintOf(uint16_t{42});
 auto constexpr kUint32Fingerprint = FingerprintOf(uint32_t{42});
 
-auto constexpr kFloatFingerprint = FingerprintOf(3.141f);
-
 auto constexpr kFalseFingerprint = FingerprintOf(false);
 auto constexpr kTrueFingerprint = FingerprintOf(true);
 
@@ -50,13 +48,10 @@ auto constexpr kNullPointerFingerprint = FingerprintOf(nullptr);
 int const kIntValue = 42;
 auto constexpr kIntPointerFingerprint = FingerprintOf(&kIntValue);
 
-float constexpr kFloatValue = 3.14;
-auto constexpr kFloatPointerFingerprint = FingerprintOf(&kFloatValue);
-
 bool const kBoolValue = true;
 auto constexpr kBoolPointerFingerprint = FingerprintOf(&kBoolValue);
 
-auto constexpr kTupleFingerprint = FingerprintOf(std::make_tuple(42, 3.14f, true));
+auto constexpr kTupleFingerprint = FingerprintOf(std::make_tuple(42, true));
 
 TEST(FingerprintTest, Integrals) {
   EXPECT_EQ(FingerprintOf(int8_t{42}), FingerprintOf(int8_t{42}));
@@ -92,7 +87,6 @@ TEST(FingerprintTest, Floats) {
   long double constexpr e3 = 2.718;
   EXPECT_EQ(FingerprintOf(pi1), FingerprintOf(pi1));
   EXPECT_NE(FingerprintOf(pi1), FingerprintOf(e1));
-  EXPECT_EQ(FingerprintOf(pi1), kFloatFingerprint);
   EXPECT_EQ(FingerprintOf(pi2), FingerprintOf(pi2));
   EXPECT_NE(FingerprintOf(pi2), FingerprintOf(e2));
   EXPECT_EQ(FingerprintOf(pi3), FingerprintOf(pi3));
@@ -122,7 +116,6 @@ TEST(FingerprintTest, Pointers) {
   std::string const s2 = "bar";
   std::string const* const p = nullptr;
   int constexpr i = 42;
-  float constexpr f = 3.14;
   bool constexpr b = true;
   EXPECT_EQ(FingerprintOf(&s1), FingerprintOf(&s1));
   EXPECT_NE(FingerprintOf(&s1), FingerprintOf(nullptr));
@@ -131,7 +124,6 @@ TEST(FingerprintTest, Pointers) {
   EXPECT_NE(FingerprintOf(&s1), FingerprintOf(&i));
   EXPECT_EQ(FingerprintOf(p), kNullPointerFingerprint);
   EXPECT_EQ(FingerprintOf(&i), kIntPointerFingerprint);
-  EXPECT_EQ(FingerprintOf(&f), kFloatPointerFingerprint);
   EXPECT_EQ(FingerprintOf(&b), kBoolPointerFingerprint);
 }
 
@@ -143,7 +135,7 @@ TEST(FingerprintTest, Tuples) {
   EXPECT_EQ(FingerprintOf(std::tie(s, i, b, f)), FingerprintOf(std::tie(s, i, b, f)));
   EXPECT_NE(FingerprintOf(std::tie(s, i, b, f)), FingerprintOf(std::tie(i, s, b, f)));
   EXPECT_NE(FingerprintOf(std::tie(s, i, b, f)), FingerprintOf(std::tie(s, i, b)));
-  EXPECT_EQ(FingerprintOf(std::make_tuple(i, f, b)), kTupleFingerprint);
+  EXPECT_EQ(FingerprintOf(std::make_tuple(i, b)), kTupleFingerprint);
 }
 
 TEST(FingerprintTest, Optionals) {
