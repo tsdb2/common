@@ -18,7 +18,10 @@ cc_test(
 cc_library(
     name = "fingerprint",
     hdrs = ["fingerprint.h"],
-    deps = [":murmur3"],
+    deps = [
+        ":murmur3",
+        "@com_google_absl//absl/types:span",
+    ],
 )
 
 cc_test(
@@ -26,6 +29,7 @@ cc_test(
     srcs = ["fingerprint_test.cc"],
     deps = [
         ":fingerprint",
+        "@com_google_absl//absl/types:span",
         "@com_google_googletest//:gtest_main",
     ],
 )

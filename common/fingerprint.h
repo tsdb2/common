@@ -51,10 +51,59 @@
 #include <type_traits>
 #include <utility>
 #include <variant>
+#include <vector>
+
+#include "absl/types/span.h"
+
+template <typename State, typename Integer>
+constexpr State Tsdb2FingerprintValue(State state, Integer value,
+                                      std::enable_if_t<std::is_integral_v<Integer>, bool> = true);
+
+template <typename State, typename Float>
+State Tsdb2FingerprintValue(State state, Float value,
+                            std::enable_if_t<std::is_floating_point_v<Float>, bool> = true);
+
+template <typename State, typename Pointee>
+constexpr State Tsdb2FingerprintValue(State state, Pointee* value);
+
+template <typename State>
+constexpr State Tsdb2FingerprintValue(State state, std::nullptr_t);
+
+template <typename State>
+State Tsdb2FingerprintValue(State state, std::string_view value);
+
+template <typename State, typename... Values>
+constexpr State Tsdb2FingerprintValue(State state, std::tuple<Values...> const& value);
+
+template <typename State, typename Optional>
+constexpr State Tsdb2FingerprintValue(State state, std::optional<Optional> const& value);
+
+template <typename State>
+constexpr State Tsdb2FingerprintValue(State state, std::nullopt_t const&);
+
+template <typename State, typename... Values>
+constexpr State Tsdb2FingerprintValue(State state, std::variant<Values...> const& value);
+
+template <typename State, typename Inner>
+constexpr State Tsdb2FingerprintValue(State state, absl::Span<Inner const> const value,
+                                      std::enable_if_t<!std::is_integral_v<Inner>, bool> = true);
+
+template <typename State, typename Integer>
+State Tsdb2FingerprintValue(State state, absl::Span<Integer const> const value,
+                            std::enable_if_t<std::is_integral_v<Integer>, bool> = true);
+
+template <typename State, typename Inner>
+constexpr State Tsdb2FingerprintValue(State state, std::vector<Inner> const& value);
+
+template <typename State>
+State Tsdb2FingerprintValue(State state, std::string_view const value);
+
+template <typename State>
+constexpr State Tsdb2FingerprintValue(State state, char const value[]);
 
 template <typename State, typename Integer>
 constexpr State Tsdb2FingerprintValue(State state, Integer const value,
-                                      std::enable_if_t<std::is_integral_v<Integer>, bool> = true) {
+                                      std::enable_if_t<std::is_integral_v<Integer>, bool>) {
   if constexpr (sizeof(Integer) > sizeof(uint32_t)) {
     static_assert(sizeof(Integer) % sizeof(uint32_t) == 0, "unsupported type");
     return state.Add(reinterpret_cast<uint32_t const*>(&value), sizeof(Integer) / sizeof(uint32_t));
@@ -65,25 +114,10 @@ constexpr State Tsdb2FingerprintValue(State state, Integer const value,
 
 template <typename State, typename Float>
 State Tsdb2FingerprintValue(State state, Float const value,
-                            std::enable_if_t<std::is_floating_point_v<Float>, bool> = true) {
+                            std::enable_if_t<std::is_floating_point_v<Float>, bool>) {
   static_assert(sizeof(Float) >= sizeof(uint32_t) && sizeof(Float) % sizeof(uint32_t) == 0,
                 "unsupported type");
   return state.Add(reinterpret_cast<uint32_t const*>(&value), sizeof(Float) / sizeof(uint32_t));
-}
-
-template <typename State>
-State Tsdb2FingerprintValue(State state, std::string_view const value) {
-  state.Add(value.size());
-  auto const data = reinterpret_cast<uint8_t const*>(value.data());
-  auto const main_chunk_size = value.size() >> 2;
-  state.Add(reinterpret_cast<uint32_t const*>(data), main_chunk_size);
-  auto const remainder = value.size() % 4;
-  if (remainder > 0) {
-    uint32_t last = 0;
-    std::memcpy(&last, data + (main_chunk_size << 2), remainder);
-    return state.Add(last);
-  }
-  return state;
 }
 
 template <typename State, typename Pointee>
@@ -99,15 +133,6 @@ constexpr State Tsdb2FingerprintValue(State state, Pointee* const value) {
 template <typename State>
 constexpr State Tsdb2FingerprintValue(State state, std::nullptr_t) {
   return state.Add(false);
-}
-
-template <typename State>
-constexpr State Tsdb2FingerprintValue(State state, char const value[]) {
-  if (value) {
-    return Tsdb2FingerprintValue(std::move(state), std::string_view(value));
-  } else {
-    return Tsdb2FingerprintValue(std::move(state), "");
-  }
 }
 
 template <typename State, typename... Values>
@@ -142,6 +167,57 @@ constexpr State Tsdb2FingerprintValue(State state, std::variant<Values...> const
         return Tsdb2FingerprintValue(std::move(state), value);
       },
       value);
+}
+
+template <typename State, typename Inner>
+constexpr State Tsdb2FingerprintValue(State state, absl::Span<Inner const> const value,
+                                      std::enable_if_t<!std::is_integral_v<Inner>, bool>) {
+  state.Add(value.size());
+  for (auto const& element : value) {
+    state = Tsdb2FingerprintValue(std::move(state), element);
+  }
+  return state;
+}
+
+template <typename State, typename Integer>
+State Tsdb2FingerprintValue(State state, absl::Span<Integer const> const value,
+                            std::enable_if_t<std::is_integral_v<Integer>, bool>) {
+  state = Tsdb2FingerprintValue(std::move(state), value.size());
+  if constexpr (sizeof(Integer) >= sizeof(uint32_t)) {
+    static_assert(sizeof(Integer) % sizeof(uint32_t) == 0, "unsupported type");
+    return Tsdb2FingerprintValue(std::move(state), reinterpret_cast<uint32_t const*>(value.data()),
+                                 value.size() * sizeof(Integer) / sizeof(uint32_t));
+  } else {
+    auto const data = reinterpret_cast<uint8_t const*>(value.data());
+    auto const main_chunk_size = value.size() >> 2;
+    state.Add(reinterpret_cast<uint32_t const*>(data), main_chunk_size);
+    auto const remainder = value.size() % 4;
+    if (remainder > 0) {
+      uint32_t last = 0;
+      std::memcpy(&last, data + (main_chunk_size << 2), remainder);
+      return state.Add(last);
+    }
+    return state;
+  }
+}
+
+template <typename State, typename Inner>
+constexpr State Tsdb2FingerprintValue(State state, std::vector<Inner> const& value) {
+  return Tsdb2FingerprintValue(std::move(state), absl::Span<Inner const>(value));
+}
+
+template <typename State>
+State Tsdb2FingerprintValue(State state, std::string_view const value) {
+  return Tsdb2FingerprintValue(std::move(state), absl::Span<char const>(value));
+}
+
+template <typename State>
+constexpr State Tsdb2FingerprintValue(State state, char const value[]) {
+  if (value) {
+    return Tsdb2FingerprintValue(std::move(state), std::string_view(value));
+  } else {
+    return Tsdb2FingerprintValue(std::move(state), "");
+  }
 }
 
 namespace tsdb2 {

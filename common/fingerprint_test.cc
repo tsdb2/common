@@ -3,11 +3,14 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string>
 #include <string_view>
 #include <tuple>
 #include <utility>
 #include <variant>
+#include <vector>
 
+#include "absl/types/span.h"
 #include "gtest/gtest.h"
 
 namespace foo {
@@ -158,6 +161,17 @@ TEST(FingerprintTest, Variant) {
   EXPECT_EQ(FingerprintOf(v1), FingerprintOf(v1));
   EXPECT_NE(FingerprintOf(v1), FingerprintOf(v2));
   EXPECT_NE(FingerprintOf(v1), FingerprintOf(v3));
+}
+
+TEST(FingerprintTest, Arrays) {
+  std::vector<std::string> a1{"lorem", "ipsum", "dolor", "amet"};
+  std::vector<std::string> a2{"foo", "bar", "baz", "qux"};
+  std::vector<std::string> a3{"foo", "bar", "baz"};
+  std::string a4[] = {"lorem", "ipsum", "dolor", "amet"};
+  EXPECT_EQ(FingerprintOf(a1), FingerprintOf(a1));
+  EXPECT_NE(FingerprintOf(a1), FingerprintOf(a2));
+  EXPECT_NE(FingerprintOf(a2), FingerprintOf(a3));
+  EXPECT_EQ(FingerprintOf(a1), FingerprintOf(absl::Span<const std::string>(a4)));
 }
 
 TEST(FingerprintTest, CustomObject) {
