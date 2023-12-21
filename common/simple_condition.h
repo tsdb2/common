@@ -14,10 +14,10 @@ namespace common {
 //
 // Without `SimpleCondition`:
 //
-//  bool condition = false;
-//  mutex.Await(absl::Condition(+[] (bool const* const condition) {
-//    return *condition;
-//  }, &condition));
+//   bool condition = false;
+//   mutex.Await(absl::Condition(+[] (bool const* const condition) {
+//     return *condition;
+//   }, &condition));
 //
 // With `SimpleCondition`:
 //
