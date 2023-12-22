@@ -295,6 +295,16 @@ class Scheduler {
   Scheduler(Scheduler &&) = delete;
   Scheduler &operator=(Scheduler &&) = delete;
 
+  // Checks the state of the queue and determines whether an event is due. The returned value is
+  // used to update the `event_due_` flag below.
+  bool is_event_due() const ABSL_SHARED_LOCKS_REQUIRED(mutex_) {
+    if (queue_.empty()) {
+      return false;
+    }
+    auto &ref = queue_.front();
+    return !ref->cancelled() && ref->due_time() <= clock_->TimeNow();
+  }
+
   Handle ScheduleInternal(Callback callback, absl::Time due_time,
                           std::optional<absl::Duration> period) ABSL_LOCKS_EXCLUDED(mutex_);
 
@@ -311,6 +321,17 @@ class Scheduler {
   absl::Mutex mutable mutex_;
   absl::node_hash_set<Event, Event::Hash, Event::Equals> events_ ABSL_GUARDED_BY(mutex_);
   std::vector<EventRef> queue_ ABSL_GUARDED_BY(mutex_);
+
+  // Indicates whether the event at the top of queue is due. This flag MUST be updated every time
+  // `queue_` is modified, as it's used for conditional locking to wake up a worker to run the
+  // event. The value of this flag can be calculated by calling `is_event_due()`.
+  //
+  // NOTE: we need to cache the value of `is_event_due()` in this flag for use in conditional
+  // locking because locking conditions can only access state guarded by the mutex and must
+  // otherwise be pure, so fetching the clock is not allowed. `is_event_due()` needs to fetch the
+  // clock to determine whether and event is due, so it cannot be invoked directly in locking
+  // conditions.
+  bool event_due_ ABSL_GUARDED_BY(mutex_) = false;
 
   State state_ ABSL_GUARDED_BY(mutex_) = State::IDLE;
   std::vector<std::unique_ptr<Worker>> workers_ ABSL_GUARDED_BY(mutex_);

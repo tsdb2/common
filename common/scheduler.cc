@@ -76,6 +76,9 @@ Scheduler::Handle Scheduler::ScheduleInternal(Callback callback, absl::Time cons
   Event &event = const_cast<Event &>(*it);
   queue_.emplace_back(&event);
   std::push_heap(queue_.begin(), queue_.end(), CompareEvents());
+  if (!event_due_) {
+    event_due_ = event.due_time() <= clock_->TimeNow();
+  }
   return event.handle();
 }
 
@@ -96,6 +99,7 @@ bool Scheduler::CancelInternal(Handle const handle, bool const blocking) {
     std::pop_heap(queue_.begin(), queue_.end(), compare);
     queue_.pop_back();
     events_.erase(handle);
+    event_due_ = is_event_due();
     return true;
   } else {
     if (blocking) {
@@ -108,26 +112,26 @@ bool Scheduler::CancelInternal(Handle const handle, bool const blocking) {
 }
 
 absl::StatusOr<Scheduler::Event *> Scheduler::WaitForEvent() {
+  auto const queue_not_empty_condition =
+      SimpleCondition([this]() ABSL_SHARED_LOCKS_REQUIRED(mutex_) {
+        return state_ > State::STARTED || !queue_.empty();
+      });
+  auto const event_due_condition = SimpleCondition([this]() ABSL_SHARED_LOCKS_REQUIRED(mutex_) {
+    return state_ > State::STARTED || event_due_;
+  });
   while (true) {
-    mutex_.Await(SimpleCondition([this]() ABSL_SHARED_LOCKS_REQUIRED(mutex_) {
-      return state_ > State::STARTED || !queue_.empty();
-    }));
+    mutex_.Await(queue_not_empty_condition);
     if (state_ > State::STARTED) {
       return absl::AbortedError("");
     }
-    auto const next_deadline = queue_.front()->due_time();
-    mutex_.AwaitWithDeadline(
-        SimpleCondition([this, next_deadline]() ABSL_SHARED_LOCKS_REQUIRED(mutex_) {
-          return state_ > State::STARTED ||
-                 (!queue_.empty() && queue_.front()->due_time() <= next_deadline);
-        }),
-        next_deadline);
+    mutex_.AwaitWithDeadline(event_due_condition, queue_.front()->due_time());
     if (state_ > State::STARTED) {
       return absl::AbortedError("");
     }
     std::pop_heap(queue_.begin(), queue_.end(), CompareEvents());
     auto const event = queue_.back().Get();
     queue_.pop_back();
+    event_due_ = is_event_due();
     if (event->cancelled()) {
       events_.erase(event->handle());
     } else {
