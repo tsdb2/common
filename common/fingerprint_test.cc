@@ -3,7 +3,6 @@
 #include <cstdint>
 #include <optional>
 #include <string>
-#include <string>
 #include <string_view>
 #include <tuple>
 #include <utility>
@@ -139,6 +138,9 @@ TEST(FingerprintTest, Tuples) {
   EXPECT_NE(FingerprintOf(std::tie(s, i, b, f)), FingerprintOf(std::tie(i, s, b, f)));
   EXPECT_NE(FingerprintOf(std::tie(s, i, b, f)), FingerprintOf(std::tie(s, i, b)));
   EXPECT_EQ(FingerprintOf(std::make_tuple(i, b)), kTupleFingerprint);
+  EXPECT_NE(FingerprintOf(std::make_tuple(i + 1, b)), kTupleFingerprint);
+  EXPECT_NE(FingerprintOf(std::make_tuple(i, !b)), kTupleFingerprint);
+  EXPECT_NE(FingerprintOf(std::make_tuple(b, i)), kTupleFingerprint);
 }
 
 TEST(FingerprintTest, Optionals) {

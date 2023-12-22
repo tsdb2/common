@@ -14,6 +14,8 @@
 #include "absl/functional/any_invocable.h"
 #include "absl/functional/bind_front.h"
 #include "absl/hash/hash.h"
+#include "absl/log/check.h"
+#include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 #include "common/clock.h"
@@ -44,12 +46,33 @@ class Scheduler {
     bool start_now = false;
   };
 
+  // Describe the state of the scheduler.
+  enum class State {
+    // Constructed but not yet started.
+    IDLE = 0,
+
+    // Started. The worker threads are processing the events.
+    STARTED = 1,
+
+    // Stop started. Waiting for current events, no more events will be executed.
+    STOPPING = 2,
+
+    // Stopped. All workers joined, no more events will be executed.
+    STOPPED = 3,
+  };
+
+  // Type of the callback functions that can be scheduled in the scheduler.
   using Callback = absl::AnyInvocable<void()>;
+
+  // Handles are unique event IDs.
   using Handle = uintptr_t;
+
+  static Handle constexpr kInvalidHandle = 0;
 
   explicit Scheduler(Options options)
       : options_(std::move(options)),
         clock_(options_.clock ? options_.clock : RealClock::GetInstance()) {
+    DCHECK_GT(options_.num_workers, 0) << "Scheduler must have at least 1 worker thread";
     if (options_.start_now) {
       Start();
     }
@@ -57,9 +80,14 @@ class Scheduler {
 
   ~Scheduler() { Stop(); }
 
-  void Start();
+  State state() const ABSL_LOCKS_EXCLUDED(mutex_) {
+    absl::MutexLock lock{&mutex_};
+    return state_;
+  }
 
-  void Stop();
+  void Start() ABSL_LOCKS_EXCLUDED(mutex_);
+
+  void Stop() ABSL_LOCKS_EXCLUDED(mutex_);
 
   // Schedules an event to be executed ASAP. `callback` is the function to execute. The returned
   // `Key` can be used to cancel the event using `Cancel`.
@@ -94,6 +122,26 @@ class Scheduler {
     return ScheduleInternal(std::move(callback), clock_->TimeNow() + delay, period);
   }
 
+  // Cancels the event with the specified handle. Does nothing if the handle is invalid for any
+  // reason, e.g. if a past event with this handle has already finished running.
+  //
+  // If the event has already started running but hasn't yet finished when this method is invoked,
+  // the event will finish running normally. In any case this method returns immediately.
+  //
+  // The returned boolean indicates whether actual cancellation happened: it is true iff the event
+  // was in the queue and hadn't started yet.
+  bool Cancel(Handle const handle) { return CancelInternal(handle, /*blocking=*/false); }
+
+  // Cancels the event with the specified handle. Does nothing if the handle is invalid for any
+  // reason, e.g. if a past event with this handle has already finished running.
+  //
+  // If the event has already started running but hasn't yet finished when this method is invoked,
+  // the event will finish running normally and this method will block until then.
+  //
+  // The returned boolean indicates whether actual cancellation happened: it is true iff the event
+  // was in the queue and hadn't started yet.
+  bool BlockingCancel(Handle const handle) { return CancelInternal(handle, /*blocking=*/true); }
+
   // TODO
 
  private:
@@ -123,18 +171,24 @@ class Scheduler {
       }
     };
 
-    explicit Event(Scheduler *const parent, Callback callback, absl::Time const due_time,
+    explicit Event(Callback callback, absl::Time const due_time,
                    std::optional<absl::Duration> const period)
-        : handle_(parent->handle_generator_.GetNext()),
-          callback_(std::move(callback)),
-          due_time_(due_time),
-          period_(period) {}
+        : callback_(std::move(callback)), due_time_(due_time), period_(period) {}
 
     Handle handle() const { return handle_; }
-    EventRef const &ref() const { return *ref_; }
+
+    EventRef const *ref() const { return ref_; }
     void set_ref(EventRef const *const ref) { ref_ = ref; }
+
+    void CheckRef(EventRef const *const ref) const {
+      DCHECK_EQ(ref_, ref) << "invalid event backlink!";
+    }
+
     absl::Time due_time() const { return due_time_; }
     void set_due_time(absl::Time const value) { due_time_ = value; }
+
+    bool cancelled() const { return cancelled_; }
+    void set_cancelled(bool const value) { cancelled_ = value; }
 
     void Run() { callback_(); }
 
@@ -144,11 +198,21 @@ class Scheduler {
     Event(Event &&) = delete;
     Event &operator=(Event &&) = delete;
 
-    Handle const handle_;
-    EventRef const *ref_ = nullptr;
+    // Generates event handles.
+    static SequenceNumber handle_generator_;
+
+    // Unique ID for the event.
+    Handle const handle_ = handle_generator_.GetNext();
+
     Callback callback_;
     absl::Time due_time_;
     std::optional<absl::Duration> period_;
+
+    // Backlink to the `EventRef` of this Event. The `EventRef` move constructor and assignment
+    // operator take care of keeping this up to date.
+    EventRef const *ref_ = nullptr;
+
+    bool cancelled_ = false;
   };
 
   // This class acts as a smart pointer to an `Event` object and maintains a backlink to itself
@@ -189,6 +253,7 @@ class Scheduler {
       return *this;
     }
 
+    Event *Get() const { return event_; }
     explicit operator bool() const { return event_ != nullptr; }
     Event *operator->() const { return event_; }
     Event &operator*() const { return *event_; }
@@ -214,6 +279,8 @@ class Scheduler {
     explicit Worker(Scheduler *const parent, size_t const index)
         : parent_(parent), index_(index), thread_(absl::bind_front(&Worker::Run, this)) {}
 
+    void Join() { thread_.join(); }
+
    private:
     void Run();
 
@@ -221,18 +288,6 @@ class Scheduler {
     size_t const index_;
 
     std::thread thread_;
-  };
-
-  // Describe the state of the scheduler.
-  enum class State {
-    // Constructed but not yet started.
-    IDLE = 0,
-
-    // Started. The worker threads are processing the events.
-    STARTED = 1,
-
-    // Stopped. All workers joined, no more events will be executed.
-    STOPPED = 2,
   };
 
   Scheduler(Scheduler const &) = delete;
@@ -243,18 +298,22 @@ class Scheduler {
   Handle ScheduleInternal(Callback callback, absl::Time due_time,
                           std::optional<absl::Duration> period) ABSL_LOCKS_EXCLUDED(mutex_);
 
+  bool CancelInternal(Handle handle, bool blocking) ABSL_LOCKS_EXCLUDED(mutex_);
+
+  absl::StatusOr<Event *> WaitForEvent() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+
+  absl::StatusOr<Event *> FetchEvent(size_t worker_index, Event *last_event)
+      ABSL_LOCKS_EXCLUDED(mutex_);
+
   Options const options_;
   Clock const *const clock_;
-
-  static SequenceNumber handle_generator_;
 
   absl::Mutex mutable mutex_;
   absl::node_hash_set<Event, Event::Hash, Event::Equals> events_ ABSL_GUARDED_BY(mutex_);
   std::vector<EventRef> queue_ ABSL_GUARDED_BY(mutex_);
 
-  absl::Mutex mutable worker_mutex_;
-  State state_ ABSL_GUARDED_BY(worker_mutex_) = State::IDLE;
-  std::vector<std::unique_ptr<Worker>> workers_ ABSL_GUARDED_BY(worker_mutex_);
+  State state_ ABSL_GUARDED_BY(mutex_) = State::IDLE;
+  std::vector<std::unique_ptr<Worker>> workers_ ABSL_GUARDED_BY(mutex_);
 };
 
 }  // namespace common
