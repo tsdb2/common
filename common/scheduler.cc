@@ -34,6 +34,7 @@ void Scheduler::Stop() {
   {
     absl::MutexLock lock{&mutex_};
     if (state_ < State::STARTED) {
+      state_ = State::STOPPED;
       return;
     } else if (state_ > State::STARTED) {
       mutex_.Await(SimpleCondition(
@@ -124,7 +125,7 @@ absl::StatusOr<Scheduler::Event *> Scheduler::WaitForEvent() {
     if (state_ > State::STARTED) {
       return absl::AbortedError("");
     }
-    mutex_.AwaitWithDeadline(event_due_condition, queue_.front()->due_time());
+    clock_->AwaitWithDeadline(&mutex_, event_due_condition, queue_.front()->due_time());
     if (state_ > State::STARTED) {
       return absl::AbortedError("");
     }
