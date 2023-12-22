@@ -15,6 +15,7 @@
 #include "absl/functional/bind_front.h"
 #include "absl/hash/hash.h"
 #include "absl/log/check.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
@@ -30,6 +31,8 @@ namespace common {
 //
 // Under the hood this class uses a fixed (configurable) number of worker threads that wait on the
 // event queue and run each event as soon as it's due.
+//
+// This class is fully thread-safe.
 class Scheduler {
  public:
   struct Options {
@@ -78,15 +81,30 @@ class Scheduler {
     }
   }
 
+  // The destructor calls `Stop`, meaning that it implicitly stops and joins all workers.
   ~Scheduler() { Stop(); }
 
+  // Returns the current state of the scheduler. See the `State` enum for more details.
   State state() const ABSL_LOCKS_EXCLUDED(mutex_) {
     absl::MutexLock lock{&mutex_};
     return state_;
   }
 
+  // Starts the workers. Has no effect if the scheduler is in any other state than `IDLE`. The
+  // scheduler is guaranteed to be in state `STARTED` when `Start` returns. If this method is called
+  // concurrently, the workers are initialized and started only once.
   void Start() ABSL_LOCKS_EXCLUDED(mutex_);
 
+  // Stops and joins all workers.
+  //
+  // The scheduler will be in state `STOPPING` through the execution of this method. Upon `Stop`
+  // returning, the scheduler is guaranteed to be in state `STOPPED`.
+  //
+  // `Start` had never been called (i.e. the scheduler is in state `IDLE` when `Stop` is called)
+  // this method will still make the scheduler transition to the `STOPPED` state, preventing it from
+  // being able to ever run any events.
+  //
+  // If `Stop is called concurrently multiple times, all calls block until the workers are joined.
   void Stop() ABSL_LOCKS_EXCLUDED(mutex_);
 
   // Schedules an event to be executed ASAP. `callback` is the function to execute. The returned
@@ -142,7 +160,13 @@ class Scheduler {
   // was in the queue and hadn't started yet.
   bool BlockingCancel(Handle const handle) { return CancelInternal(handle, /*blocking=*/true); }
 
-  // TODO
+  // TEST ONLY: wait until all due events have been processed and all workers are asleep. This
+  // method only makes sense in testing scenarios with a `MockClock`, otherwise if more events are
+  // scheduled in the queue and close enough in the future there's no guarantee that the workers
+  // won't wake up again by the time this method returns. The time of a `MockClock` on the other
+  // hand will only advance as decided in the test, so the workers are guaranteed to remain asleep
+  // until then.
+  absl::Status WaitUntilAllWorkersAsleep() ABSL_LOCKS_EXCLUDED(mutex_);
 
  private:
   class EventRef;
@@ -274,10 +298,35 @@ class Scheduler {
     }
   };
 
+  // Worker thread implementation.
+  //
+  // NOTE: the worker's sleeping flag is guarded by the Scheduler's mutex. Unfortunately we can't
+  // note that via thread annotalysis because the compiler can't track that `parent_` points to the
+  // parent `Scheduler`.
   class Worker final {
    public:
+    class SleepScope final {
+     public:
+      explicit SleepScope(Worker *const worker) : worker_(worker) { worker_->set_sleeping(true); }
+      ~SleepScope() { worker_->set_sleeping(false); }
+
+     private:
+      SleepScope(SleepScope const &) = delete;
+      SleepScope &operator=(SleepScope const &) = delete;
+      SleepScope(SleepScope &&) = delete;
+      SleepScope &operator=(SleepScope &&) = delete;
+
+      Worker *const worker_;
+    };
+
     explicit Worker(Scheduler *const parent, size_t const index)
         : parent_(parent), index_(index), thread_(absl::bind_front(&Worker::Run, this)) {}
+
+    // Indicates whether the worker is waiting for event.
+    bool is_sleeping() const { return sleeping_; }
+
+    // Sets the worker's sleeping flag.
+    void set_sleeping(bool const value) { sleeping_ = value; }
 
     void Join() { thread_.join(); }
 
@@ -287,6 +336,7 @@ class Scheduler {
     Scheduler *const parent_;
     size_t const index_;
 
+    bool sleeping_ = false;
     std::thread thread_;
   };
 
@@ -309,8 +359,6 @@ class Scheduler {
                           std::optional<absl::Duration> period) ABSL_LOCKS_EXCLUDED(mutex_);
 
   bool CancelInternal(Handle handle, bool blocking) ABSL_LOCKS_EXCLUDED(mutex_);
-
-  absl::StatusOr<Event *> WaitForEvent() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
   absl::StatusOr<Event *> FetchEvent(size_t worker_index, Event *last_event)
       ABSL_LOCKS_EXCLUDED(mutex_);

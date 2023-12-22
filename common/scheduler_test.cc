@@ -1,8 +1,10 @@
 #include "common/scheduler.h"
 
 #include <cstdint>
+#include <utility>
 
 #include "absl/synchronization/mutex.h"
+#include "absl/time/time.h"
 #include "common/mock_clock.h"
 #include "common/simple_condition.h"
 #include "gtest/gtest.h"
@@ -53,7 +55,7 @@ TEST_P(SchedulerStateTest, Stopping) {
   scheduler_.ScheduleNow([&] {
     absl::MutexLock lock{&mutex};
     started = true;
-    mutex.Await(SimpleCondition([&] { return stopping && exit; }));
+    mutex.Await(absl::Condition(&exit));
     EXPECT_EQ(scheduler_.state(), Scheduler::State::STOPPING);
   });
   std::thread thread{[&] {
@@ -67,7 +69,7 @@ TEST_P(SchedulerStateTest, Stopping) {
   }};
   {
     absl::MutexLock lock{&mutex};
-    mutex.Await(absl::Condition(&started));
+    mutex.Await(absl::Condition(&stopping));
     exit = true;
   }
   thread.join();
@@ -88,7 +90,7 @@ TEST_P(SchedulerStateTest, ConcurrentStops) {
   scheduler_.ScheduleNow([&] {
     absl::MutexLock lock{&mutex};
     started = true;
-    mutex.Await(SimpleCondition([&] { return stopping == 3 && exit; }));
+    mutex.Await(absl::Condition(&exit));
     EXPECT_EQ(scheduler_.state(), Scheduler::State::STOPPING);
   });
   auto const stopper = [&] {
@@ -105,7 +107,7 @@ TEST_P(SchedulerStateTest, ConcurrentStops) {
   std::thread thread3{stopper};
   {
     absl::MutexLock lock{&mutex};
-    mutex.Await(absl::Condition(&started));
+    mutex.Await(SimpleCondition([&] { return stopping == 3; }));
     exit = true;
   }
   thread3.join();
@@ -120,11 +122,21 @@ TEST_P(SchedulerStateTest, StoppedButNotStarted) {
 
 INSTANTIATE_TEST_SUITE_P(SchedulerStateTest, SchedulerStateTest, ::testing::Range(1, 10));
 
-// TODO
-
 class SchedulerEventTest : public SchedulerTest {
  protected:
-  explicit SchedulerEventTest() : SchedulerTest(/*start_now=*/true) {}
+  explicit SchedulerEventTest() : SchedulerTest(/*start_now=*/true) {
+    clock_.AdvanceTime(absl::Seconds(12));
+  }
+
+  Scheduler::Handle Schedule(absl::Duration const due_time, Scheduler::Callback callback) {
+    return scheduler_.ScheduleAt(std::move(callback), absl::UnixEpoch() + due_time);
+  }
+
+  Scheduler::Handle Schedule(absl::Duration const due_time, Scheduler::Callback callback,
+                             absl::Duration const period) {
+    return scheduler_.ScheduleRecurringAt(std::move(callback), absl::UnixEpoch() + due_time,
+                                          period);
+  }
 };
 
 TEST_P(SchedulerEventTest, SmokeTest) {

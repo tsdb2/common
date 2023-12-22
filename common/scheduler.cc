@@ -7,6 +7,8 @@
 #include <optional>
 #include <utility>
 
+#include "absl/algorithm/container.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
@@ -54,13 +56,29 @@ void Scheduler::Stop() {
   }
 }
 
+absl::Status Scheduler::WaitUntilAllWorkersAsleep() {
+  absl::MutexLock lock{&mutex_};
+  mutex_.Await(SimpleCondition([this]() ABSL_SHARED_LOCKS_REQUIRED(mutex_) {
+    return state_ > State::STARTED ||
+           (absl::c_all_of(workers_, [](auto const &worker) { return worker->is_sleeping(); }) &&
+            !event_due_);
+  }));
+  if (state_ > State::STARTED) {
+    return absl::CancelledError("");
+  } else {
+    return absl::OkStatus();
+  }
+}
+
 // Handles start from 1 because 0 is reserved as an invalid handle value.
 SequenceNumber Scheduler::Event::handle_generator_{1};
 
 void Scheduler::Worker::Run() {
   Event *event = nullptr;
   while (true) {
+    sleeping_ = true;
     auto const status_or_event = parent_->FetchEvent(index_, event);
+    sleeping_ = false;
     if (status_or_event.ok()) {
       event = status_or_event.value();
       event->Run();
@@ -112,7 +130,14 @@ bool Scheduler::CancelInternal(Handle const handle, bool const blocking) {
   }
 }
 
-absl::StatusOr<Scheduler::Event *> Scheduler::WaitForEvent() {
+absl::StatusOr<Scheduler::Event *> Scheduler::FetchEvent(size_t const worker_index,
+                                                         Event *const last_event) {
+  absl::MutexLock lock{&mutex_};
+  Worker::SleepScope worker_sleep_scope{workers_[worker_index].get()};
+  if (last_event) {
+    // TODO: handle periodic events.
+    events_.erase(last_event->handle());
+  }
   auto const queue_not_empty_condition =
       SimpleCondition([this]() ABSL_SHARED_LOCKS_REQUIRED(mutex_) {
         return state_ > State::STARTED || !queue_.empty();
@@ -139,16 +164,6 @@ absl::StatusOr<Scheduler::Event *> Scheduler::WaitForEvent() {
       return event;
     }
   }
-}
-
-absl::StatusOr<Scheduler::Event *> Scheduler::FetchEvent(size_t const worker_index,
-                                                         Event *const last_event) {
-  absl::MutexLock lock{&mutex_};
-  if (last_event) {
-    // TODO: handle periodic events.
-    events_.erase(last_event->handle());
-  }
-  return WaitForEvent();
 }
 
 }  // namespace common
