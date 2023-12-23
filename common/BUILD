@@ -7,6 +7,28 @@ cc_library(
 )
 
 cc_library(
+    name = "raw_flat_set",
+    hdrs = ["raw_flat_set.h"],
+    visibility = ["//visibility:private"],
+    deps = ["@com_google_absl//absl/base"],
+)
+
+cc_library(
+    name = "flat_set",
+    hdrs = ["flat_set.h"],
+    deps = [":raw_flat_set"],
+)
+
+cc_test(
+    name = "flat_set_test",
+    srcs = ["flat_set_test.cc"],
+    deps = [
+        ":flat_set",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "murmur3",
     srcs = ["murmur3.cc"],
     hdrs = ["murmur3.h"],
