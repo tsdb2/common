@@ -56,7 +56,7 @@ void Scheduler::Stop() {
   }
 }
 
-absl::Status Scheduler::WaitUntilAllWorkersAsleep() {
+absl::Status Scheduler::WaitUntilAllWorkersAsleep() const {
   absl::MutexLock lock{&mutex_};
   mutex_.Await(SimpleCondition([this]() ABSL_SHARED_LOCKS_REQUIRED(mutex_) {
     return state_ > State::STARTED ||

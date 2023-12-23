@@ -166,7 +166,7 @@ class Scheduler {
   // won't wake up again by the time this method returns. The time of a `MockClock` on the other
   // hand will only advance as decided in the test, so the workers are guaranteed to remain asleep
   // until then.
-  absl::Status WaitUntilAllWorkersAsleep() ABSL_LOCKS_EXCLUDED(mutex_);
+  absl::Status WaitUntilAllWorkersAsleep() const ABSL_LOCKS_EXCLUDED(mutex_);
 
  private:
   class EventRef;

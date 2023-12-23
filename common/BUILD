@@ -1,6 +1,12 @@
 package(default_visibility = ["//visibility:public"])
 
 cc_library(
+    name = "testing",
+    testonly = True,
+    hdrs = ["testing.h"],
+)
+
+cc_library(
     name = "murmur3",
     srcs = ["murmur3.cc"],
     hdrs = ["murmur3.h"],
@@ -194,6 +200,7 @@ cc_test(
         ":mock_clock",
         ":scheduler",
         ":simple_condition",
+        ":testing",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
         "@com_google_googletest//:gtest_main",
