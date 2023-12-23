@@ -26,7 +26,7 @@ void Scheduler::Start() {
   size_t const num_workers = options_.num_workers;
   workers_.reserve(num_workers);
   for (size_t i = 0; i < num_workers; ++i) {
-    workers_.emplace_back(std::make_unique<Worker>(this, i));
+    workers_.emplace_back(std::make_unique<Worker>(this));
   }
   state_ = State::STARTED;
 }
@@ -76,9 +76,7 @@ SequenceNumber Scheduler::Event::handle_generator_{1};
 void Scheduler::Worker::Run() {
   Event *event = nullptr;
   while (true) {
-    sleeping_ = true;
-    auto const status_or_event = parent_->FetchEvent(index_, event);
-    sleeping_ = false;
+    auto const status_or_event = parent_->FetchEvent(this, event);
     if (status_or_event.ok()) {
       event = status_or_event.value();
       event->Run();
@@ -130,10 +128,10 @@ bool Scheduler::CancelInternal(Handle const handle, bool const blocking) {
   }
 }
 
-absl::StatusOr<Scheduler::Event *> Scheduler::FetchEvent(size_t const worker_index,
+absl::StatusOr<Scheduler::Event *> Scheduler::FetchEvent(Worker *const worker,
                                                          Event *const last_event) {
   absl::MutexLock lock{&mutex_};
-  Worker::SleepScope worker_sleep_scope{workers_[worker_index].get()};
+  Worker::SleepScope worker_sleep_scope{worker};
   if (last_event) {
     // TODO: handle periodic events.
     events_.erase(last_event->handle());

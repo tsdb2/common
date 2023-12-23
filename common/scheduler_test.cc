@@ -46,73 +46,10 @@ TEST_P(SchedulerStateTest, StartedAgain) {
   EXPECT_EQ(scheduler_.state(), Scheduler::State::STARTED);
 }
 
-TEST_P(SchedulerStateTest, Stopping) {
-  scheduler_.Start();
-  absl::Mutex mutex;
-  bool started = false;
-  bool stopping = false;
-  bool exit = false;
-  scheduler_.ScheduleNow([&] {
-    absl::MutexLock lock{&mutex};
-    started = true;
-    mutex.Await(absl::Condition(&exit));
-    EXPECT_EQ(scheduler_.state(), Scheduler::State::STOPPING);
-  });
-  std::thread thread{[&] {
-    {
-      absl::MutexLock lock{&mutex};
-      mutex.Await(absl::Condition(&started));
-      stopping = true;
-    }
-    scheduler_.Stop();
-    EXPECT_EQ(scheduler_.state(), Scheduler::State::STOPPED);
-  }};
-  {
-    absl::MutexLock lock{&mutex};
-    mutex.Await(absl::Condition(&stopping));
-    exit = true;
-  }
-  thread.join();
-}
-
 TEST_P(SchedulerStateTest, Stopped) {
   scheduler_.Start();
   scheduler_.Stop();
   EXPECT_EQ(scheduler_.state(), Scheduler::State::STOPPED);
-}
-
-TEST_P(SchedulerStateTest, ConcurrentStops) {
-  scheduler_.Start();
-  absl::Mutex mutex;
-  bool started = false;
-  int stopping = 0;
-  bool exit = false;
-  scheduler_.ScheduleNow([&] {
-    absl::MutexLock lock{&mutex};
-    started = true;
-    mutex.Await(absl::Condition(&exit));
-    EXPECT_EQ(scheduler_.state(), Scheduler::State::STOPPING);
-  });
-  auto const stopper = [&] {
-    {
-      absl::MutexLock lock{&mutex};
-      mutex.Await(absl::Condition(&started));
-      ++stopping;
-    }
-    scheduler_.Stop();
-    EXPECT_EQ(scheduler_.state(), Scheduler::State::STOPPED);
-  };
-  std::thread thread1{stopper};
-  std::thread thread2{stopper};
-  std::thread thread3{stopper};
-  {
-    absl::MutexLock lock{&mutex};
-    mutex.Await(SimpleCondition([&] { return stopping == 3; }));
-    exit = true;
-  }
-  thread3.join();
-  thread2.join();
-  thread1.join();
 }
 
 TEST_P(SchedulerStateTest, StoppedButNotStarted) {

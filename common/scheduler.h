@@ -305,6 +305,7 @@ class Scheduler {
   // parent `Scheduler`.
   class Worker final {
    public:
+    // Used by `Scheduler::FetchEvent` to manage the sleeping flag of the calling worker.
     class SleepScope final {
      public:
       explicit SleepScope(Worker *const worker) : worker_(worker) { worker_->set_sleeping(true); }
@@ -319,8 +320,8 @@ class Scheduler {
       Worker *const worker_;
     };
 
-    explicit Worker(Scheduler *const parent, size_t const index)
-        : parent_(parent), index_(index), thread_(absl::bind_front(&Worker::Run, this)) {}
+    explicit Worker(Scheduler *const parent)
+        : parent_(parent), thread_(absl::bind_front(&Worker::Run, this)) {}
 
     // Indicates whether the worker is waiting for event.
     bool is_sleeping() const { return sleeping_; }
@@ -334,7 +335,6 @@ class Scheduler {
     void Run();
 
     Scheduler *const parent_;
-    size_t const index_;
 
     bool sleeping_ = false;
     std::thread thread_;
@@ -360,8 +360,7 @@ class Scheduler {
 
   bool CancelInternal(Handle handle, bool blocking) ABSL_LOCKS_EXCLUDED(mutex_);
 
-  absl::StatusOr<Event *> FetchEvent(size_t worker_index, Event *last_event)
-      ABSL_LOCKS_EXCLUDED(mutex_);
+  absl::StatusOr<Event *> FetchEvent(Worker *worker, Event *last_event) ABSL_LOCKS_EXCLUDED(mutex_);
 
   Options const options_;
   Clock const *const clock_;
