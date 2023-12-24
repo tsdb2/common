@@ -34,8 +34,8 @@ class raw_flat_set {
   using representation_type = Representation;
   using size_type = size_t;
   using difference_type = ptrdiff_t;
-  using key_compare = Compare;
-  using value_compare = Compare;
+  using key_compare = typename Traits::key_compare;
+  using value_compare = typename Traits::value_compare;
   using allocator_type = typename Representation::allocator_type;
   using reference = value_type&;
   using const_reference = value_type const&;
@@ -106,6 +106,31 @@ class raw_flat_set {
     for (auto& value : init) {
       insert(value);
     }
+    return *this;
+  }
+
+  friend bool operator==(raw_flat_set const& lhs, raw_flat_set const& rhs) {
+    return lhs.rep_ == rhs.rep_;
+  }
+
+  friend bool operator!=(raw_flat_set const& lhs, raw_flat_set const& rhs) {
+    return lhs.rep_ != rhs.rep_;
+  }
+
+  friend bool operator<(raw_flat_set const& lhs, raw_flat_set const& rhs) {
+    return lhs.rep_ < rhs.rep_;
+  }
+
+  friend bool operator<=(raw_flat_set const& lhs, raw_flat_set const& rhs) {
+    return lhs.rep_ <= rhs.rep_;
+  }
+
+  friend bool operator>(raw_flat_set const& lhs, raw_flat_set const& rhs) {
+    return lhs.rep_ > rhs.rep_;
+  }
+
+  friend bool operator>=(raw_flat_set const& lhs, raw_flat_set const& rhs) {
+    return lhs.rep_ >= rhs.rep_;
   }
 
   allocator_type get_allocator() const noexcept { return rep_.get_allocator(); }
@@ -255,7 +280,39 @@ class raw_flat_set {
     return it != rep_.end();
   }
 
-  // TODO
+  template <typename Key = key_type>
+  std::pair<iterator, iterator> equal_range(key_arg_t<Key> const& key) {
+    return std::equal_range(rep_.begin(), rep_.end(), key, comp_);
+  }
+
+  template <typename Key = key_type>
+  std::pair<const_iterator, const_iterator> equal_range(key_arg_t<Key> const& key) const {
+    return std::equal_range(rep_.begin(), rep_.end(), key, comp_);
+  }
+
+  template <typename Key = key_type>
+  std::pair<iterator, iterator> lower_bound(key_arg_t<Key> const& key) {
+    return std::lower_bound(rep_.begin(), rep_.end(), key, comp_);
+  }
+
+  template <typename Key = key_type>
+  std::pair<const_iterator, const_iterator> lower_bound(key_arg_t<Key> const& key) const {
+    return std::lower_bound(rep_.begin(), rep_.end(), key, comp_);
+  }
+
+  template <typename Key = key_type>
+  std::pair<iterator, iterator> upper_bound(key_arg_t<Key> const& key) {
+    return std::upper_bound(rep_.begin(), rep_.end(), key, comp_);
+  }
+
+  template <typename Key = key_type>
+  std::pair<const_iterator, const_iterator> upper_bound(key_arg_t<Key> const& key) const {
+    return std::upper_bound(rep_.begin(), rep_.end(), key, comp_);
+  }
+
+  key_compare key_comp() const { return comp_; }
+
+  value_compare value_comp() const { return comp_; }
 
  private:
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Compare comp_;

@@ -188,13 +188,13 @@ TEST(FlatSetTest, DefaultComparator) {
 
 TEST(FlatSetTest, Construct) {
   flat_set<TestKey, TestCompare, TestRepresentation> fs1{TestCompare(), TestAllocator()};
-  EXPECT_TRUE(fs1.empty());
+  EXPECT_THAT(fs1, TestKeysAre());
   flat_set<TestKey, TestCompare, TestRepresentation> fs2{TestCompare()};
-  EXPECT_TRUE(fs2.empty());
+  EXPECT_THAT(fs2, TestKeysAre());
   flat_set<TestKey, TestCompare, TestRepresentation> fs3{TestAllocator()};
-  EXPECT_TRUE(fs3.empty());
+  EXPECT_THAT(fs3, TestKeysAre());
   flat_set<TestKey, TestCompare, TestRepresentation> fs4{};
-  EXPECT_TRUE(fs4.empty());
+  EXPECT_THAT(fs4, TestKeysAre());
 }
 
 TEST(FlatSetTest, ConstructWithIterators) {
@@ -217,6 +217,100 @@ TEST(FlatSetTest, ConstructWithIterators) {
 TEST(FlatSetTest, ConstructWithInitializerList) {
   flat_set<TestKey, TestCompare, TestRepresentation> fs{-2, -3, 4, -1, -2, 1, 5, -3};
   EXPECT_THAT(fs, TestKeysAre(-3, -2, -1, 1, 4, 5));
+}
+
+TEST(FlatSetTest, AssignInitializerList) {
+  flat_set<TestKey, TestCompare, TestRepresentation> fs;
+  fs = {-2, -3, 4, -1, -2, 1, 5, -3};
+  EXPECT_THAT(fs, TestKeysAre(-3, -2, -1, 1, 4, 5));
+}
+
+TEST(FlatSetTest, Deduplication) {
+  flat_set<TestKey, TestCompare, TestRepresentation> fs1{-2, -3, 4, -1, -2, 1, 5, -3};
+  flat_set<TestKey, TestCompare, TestRepresentation> fs2{-3, -2, -1, 1, 4, 5};
+  EXPECT_EQ(fs1, fs2);
+}
+
+TEST(FlatSetTest, CompareEqual) {
+  flat_set<TestKey, TestCompare, TestRepresentation> fs1{-2, -3, 4, -1, -2, 1, 5, -3};
+  flat_set<TestKey, TestCompare, TestRepresentation> fs2{-2, -3, 4, -1, -2, 1, 5, -3};
+  EXPECT_TRUE(fs1 == fs2);
+  EXPECT_FALSE(fs1 != fs2);
+  EXPECT_FALSE(fs1 < fs2);
+  EXPECT_TRUE(fs1 <= fs2);
+  EXPECT_FALSE(fs1 > fs2);
+  EXPECT_TRUE(fs1 >= fs2);
+}
+
+TEST(FlatSetTest, CompareLHSLessThanRHS) {
+  flat_set<TestKey, TestCompare, TestRepresentation> fs1{-2, -3, 4, -1, -2, 1, 5, -3};
+  flat_set<TestKey, TestCompare, TestRepresentation> fs2{-3, 4, -1, 1, 5, -3};
+  EXPECT_FALSE(fs1 == fs2);
+  EXPECT_TRUE(fs1 != fs2);
+  EXPECT_TRUE(fs1 < fs2);
+  EXPECT_TRUE(fs1 <= fs2);
+  EXPECT_FALSE(fs1 > fs2);
+  EXPECT_FALSE(fs1 >= fs2);
+}
+
+TEST(FlatSetTest, CompareLHSGreaterThanRHS) {
+  flat_set<TestKey, TestCompare, TestRepresentation> fs1{-3, 4, -1, 1, 5, -3};
+  flat_set<TestKey, TestCompare, TestRepresentation> fs2{-2, -3, 4, -1, -2, 1, 5, -3};
+  EXPECT_FALSE(fs1 == fs2);
+  EXPECT_TRUE(fs1 != fs2);
+  EXPECT_FALSE(fs1 < fs2);
+  EXPECT_FALSE(fs1 <= fs2);
+  EXPECT_TRUE(fs1 > fs2);
+  EXPECT_TRUE(fs1 >= fs2);
+}
+
+TEST(FlatSetTest, CopyConstruct) {
+  flat_set<TestKey, TestCompare, TestRepresentation> fs1{-2, -3, 4, -1, -2, 1, 5, -3};
+  flat_set<TestKey, TestCompare, TestRepresentation> fs2{fs1};
+  EXPECT_THAT(fs2, TestKeysAre(-3, -2, -1, 1, 4, 5));
+}
+
+TEST(FlatSetTest, Copy) {
+  flat_set<TestKey, TestCompare, TestRepresentation> fs1{-2, -3, 4, -1, -2, 1, 5, -3};
+  flat_set<TestKey, TestCompare, TestRepresentation> fs2;
+  fs2 = fs1;
+  EXPECT_THAT(fs2, TestKeysAre(-3, -2, -1, 1, 4, 5));
+}
+
+TEST(FlatSetTest, MoveConstruct) {
+  flat_set<TestKey, TestCompare, TestRepresentation> fs1{-2, -3, 4, -1, -2, 1, 5, -3};
+  flat_set<TestKey, TestCompare, TestRepresentation> fs2{std::move(fs1)};
+  EXPECT_THAT(fs1, TestKeysAre());
+  EXPECT_THAT(fs2, TestKeysAre(-3, -2, -1, 1, 4, 5));
+}
+
+TEST(FlatSetTest, Move) {
+  flat_set<TestKey, TestCompare, TestRepresentation> fs1{-2, -3, 4, -1, -2, 1, 5, -3};
+  flat_set<TestKey, TestCompare, TestRepresentation> fs2;
+  fs2 = std::move(fs1);
+  EXPECT_THAT(fs1, TestKeysAre());
+  EXPECT_THAT(fs2, TestKeysAre(-3, -2, -1, 1, 4, 5));
+}
+
+TEST(FlatSetTest, Empty) {
+  flat_set<TestKey, TestCompare, TestRepresentation> fs;
+  ASSERT_THAT(fs, TestKeysAre());
+  EXPECT_TRUE(fs.empty());
+  EXPECT_EQ(fs.size(), 0);
+}
+
+TEST(FlatSetTest, NotEmpty) {
+  flat_set<TestKey, TestCompare, TestRepresentation> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  EXPECT_FALSE(fs.empty());
+  EXPECT_EQ(fs.size(), 6);
+}
+
+TEST(FlatSetTest, Clear) {
+  flat_set<TestKey, TestCompare, TestRepresentation> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  fs.clear();
+  EXPECT_THAT(fs, TestKeysAre());
+  EXPECT_TRUE(fs.empty());
+  EXPECT_EQ(fs.size(), 0);
 }
 
 // TODO

@@ -17,10 +17,13 @@
 namespace tsdb2 {
 namespace common {
 
-template <typename Key, typename Representation>
+template <typename Key, typename Compare, typename Representation>
 struct flat_set_traits {
   using key_type = Key;
   using value_type = Key;
+
+  using key_compare = Compare;
+  using value_compare = Compare;
 
   using iterator = typename Representation::iterator const;
   using const_iterator = typename Representation::const_iterator;
@@ -55,11 +58,11 @@ struct flat_set_traits {
 
 template <typename Key, typename Compare = std::less<Key>,
           typename Representation = std::vector<Key>>
-class flat_set : private internal::raw_flat_set<flat_set_traits<Key, Representation>, Compare,
-                                                Representation> {
+class flat_set : public internal::raw_flat_set<flat_set_traits<Key, Compare, Representation>,
+                                               Compare, Representation> {
  public:
-  using raw_flat_set =
-      internal::raw_flat_set<flat_set_traits<Key, Representation>, Compare, Representation>;
+  using raw_flat_set = internal::raw_flat_set<flat_set_traits<Key, Compare, Representation>,
+                                              Compare, Representation>;
 
   using key_type = typename raw_flat_set::key_type;
   using value_type = typename raw_flat_set::value_type;
@@ -136,9 +139,15 @@ class flat_set : private internal::raw_flat_set<flat_set_traits<Key, Representat
 
   using raw_flat_set::ExtractRep;
 
+  using raw_flat_set::contains;
   using raw_flat_set::count;
+  using raw_flat_set::equal_range;
+  using raw_flat_set::find;
+  using raw_flat_set::lower_bound;
+  using raw_flat_set::upper_bound;
 
-  // TODO
+  using raw_flat_set::key_comp;
+  using raw_flat_set::value_comp;
 };
 
 }  // namespace common
