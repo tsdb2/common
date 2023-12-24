@@ -234,3 +234,29 @@ cc_test(
         "@com_google_googletest//:gtest_main",
     ],
 )
+
+cc_library(
+    name = "periodic_thread",
+    hdrs = ["periodic_thread.h"],
+    deps = [
+        ":clock",
+        ":scheduler",
+        "@com_google_absl//absl/functional:any_invocable",
+        "@com_google_absl//absl/functional:bind_front",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/time",
+    ],
+)
+
+cc_test(
+    name = "periodic_thread_test",
+    srcs = ["periodic_thread_test.cc"],
+    deps = [
+        ":mock_clock",
+        ":periodic_thread",
+        ":testing",
+        "@com_google_absl//absl/time",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
