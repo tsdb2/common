@@ -313,6 +313,85 @@ TEST(FlatSetTest, Clear) {
   EXPECT_EQ(fs.size(), 0);
 }
 
+TEST(FlatSetTest, Insert) {
+  flat_set<TestKey, TestCompare, TestRepresentation> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  TestKey const value{6};
+  auto const [it, inserted] = fs.insert(value);
+  EXPECT_EQ(value, *it);
+  EXPECT_TRUE(inserted);
+}
+
+TEST(FlatSetTest, MoveInsert) {
+  flat_set<TestKey, TestCompare, TestRepresentation> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  TestKey value{6};
+  auto const [it, inserted] = fs.insert(std::move(value));
+  EXPECT_EQ(it->field, 6);
+  EXPECT_TRUE(inserted);
+}
+
+TEST(FlatSetTest, InsertCollision) {
+  flat_set<TestKey, TestCompare, TestRepresentation> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  TestKey const value{5};
+  auto const [it, inserted] = fs.insert(value);
+  EXPECT_EQ(value, *it);
+  EXPECT_FALSE(inserted);
+}
+
+TEST(FlatSetTest, MoveInsertCollision) {
+  flat_set<TestKey, TestCompare, TestRepresentation> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  TestKey value{5};
+  auto const [it, inserted] = fs.insert(std::move(value));
+  EXPECT_EQ(it->field, 5);
+  EXPECT_FALSE(inserted);
+}
+
+TEST(FlatSetTest, InsertFromIterators) {
+  flat_set<TestKey, TestCompare, TestRepresentation> fs{-2, -3, 4, -1};
+  std::vector<TestKey> v{-2, 1, 5, -3};
+  fs.insert(v.begin(), v.end());
+  EXPECT_THAT(fs, TestKeysAre(-3, -2, -1, 1, 4, 5));
+}
+
+TEST(FlatSetTest, InsertFromInitializerList) {
+  flat_set<TestKey, TestCompare, TestRepresentation> fs{-2, -3, 4, -1};
+  fs.insert({-2, 1, 5, -3});
+  EXPECT_THAT(fs, TestKeysAre(-3, -2, -1, 1, 4, 5));
+}
+
+TEST(FlatSetTest, InsertNode) {
+  flat_set<TestKey, TestCompare, TestRepresentation> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  auto node1 = fs.extract(TestKey{1});
+  auto const [it, inserted, node2] = fs.insert(std::move(node1));
+  EXPECT_EQ(it->field, 1);
+  EXPECT_TRUE(inserted);
+  EXPECT_TRUE(node2.empty());
+  EXPECT_THAT(fs, TestKeysAre(-3, -2, -1, 1, 4, 5));
+}
+
+TEST(FlatSetTest, InsertNodeCollision) {
+  flat_set<TestKey, TestCompare, TestRepresentation> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  auto node1 = fs.extract(TestKey{1});
+  fs.insert(1);
+  auto const [it, inserted, node2] = fs.insert(std::move(node1));
+  EXPECT_EQ(it->field, 1);
+  EXPECT_FALSE(inserted);
+  EXPECT_FALSE(node2.empty());
+  EXPECT_THAT(fs, TestKeysAre(-3, -2, -1, 1, 4, 5));
+}
+
+TEST(FlatSetTest, InsertEmptyNode) {
+  using flat_set = flat_set<TestKey, TestCompare, TestRepresentation>;
+  flat_set fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  typename flat_set::node_type node1;
+  EXPECT_TRUE(node1.empty());
+  EXPECT_TRUE(!node1);
+  auto const [it, inserted, node2] = fs.insert(std::move(node1));
+  EXPECT_EQ(it, fs.end());
+  EXPECT_FALSE(inserted);
+  EXPECT_TRUE(node2.empty());
+  EXPECT_THAT(fs, TestKeysAre(-3, -2, -1, 1, 4, 5));
+}
+
 // TODO
 
 }  // namespace

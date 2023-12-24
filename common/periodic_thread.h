@@ -48,7 +48,7 @@ class PeriodicThread {
             .clock = options.clock,
             .start_now = false,
         }) {
-    CHECK_GT(options.period, 0)
+    CHECK_GT(options.period, absl::ZeroDuration())
         << "the period of a PeriodicThread must be strictly greater than zero!";
     scheduler_.ScheduleRecurringIn(absl::bind_front(&PeriodicThread::Run, this),
                                    absl::ZeroDuration(), options.period);

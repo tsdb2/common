@@ -2,7 +2,7 @@
 // structure. When backed by an std::vector, flat_set behaves like a sorted array and is well suited
 // for read-mostly use cases and/or small-ish data structures. In those cases, being allocated in a
 // single heap block makes the data much more cache-friendly and efficient. For any uses cases with
-// large (but still read-mostly) datasets, you may use std::deque instead of std::vector.
+// large (but still read-mostly) datasets, you may want to use std::deque instead of std::vector.
 
 #ifndef __TSDB2_COMMON_FLAT_SET_H__
 #define __TSDB2_COMMON_FLAT_SET_H__
@@ -33,14 +33,16 @@ struct flat_set_traits {
   class node {
    public:
     constexpr node() : value_(std::nullopt) {}
+    explicit node(value_type&& value) : value_(std::move(value)) {}
 
     node(node&& other) noexcept = default;
     node& operator=(node&& other) noexcept = default;
 
     bool empty() const noexcept { return !value_.has_value(); }
-    explicit operator bool() const noexcept { return empty(); }
+    explicit operator bool() const noexcept { return value_.has_value(); }
 
-    value_type& value() const& { return *value_; }
+    value_type& value() & { return *value_; }
+    value_type const& value() const& { return *value_; }
     value_type&& value() && { return *std::move(value_); }
 
     void swap(node& other) noexcept { value_.swap(other.value_); }

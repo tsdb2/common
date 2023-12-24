@@ -221,13 +221,12 @@ class raw_flat_set {
     return insert(value_type(std::forward<Args>(args)...));
   }
 
-  iterator erase(iterator pos) { rep_.erase(pos); }
   iterator erase(const_iterator pos) { rep_.erase(pos); }
   iterator erase(const_iterator first, const_iterator last) { rep_.erase(first, last); }
 
   template <typename Key = key_type>
   size_type erase(key_arg_t<Key>&& key) {
-    return rep_.erase(std::binary_search(rep_.begin(), rep_.end(), key, comp_));
+    return rep_.erase(std::lower_bound(rep_.begin(), rep_.end(), key, comp_));
   }
 
   void swap(raw_flat_set& other) noexcept {
@@ -243,15 +242,9 @@ class raw_flat_set {
     return node;
   }
 
-  node_type extract(const_iterator position) {
-    node_type node{std::move(*position)};
-    rep_.erase(position);
-    return node;
-  }
-
   template <typename Key = key_type>
   node_type extract(key_arg_t<Key>&& key) {
-    return extract(std::binary_search(rep_.begin(), rep_.end(), key, comp_));
+    return extract(std::lower_bound(rep_.begin(), rep_.end(), key, comp_));
   }
 
   // TODO: merge methods.
@@ -260,23 +253,23 @@ class raw_flat_set {
 
   template <typename Key = key_type>
   size_type count(key_arg_t<Key> const& key) const {
-    auto const it = std::binary_search(rep_.begin(), rep_.end(), key, comp_);
+    auto const it = std::lower_bound(rep_.begin(), rep_.end(), key, comp_);
     return it != rep_.end();
   }
 
   template <typename Key = key_type>
   iterator find(key_arg_t<Key> const& key) {
-    return std::binary_search(rep_.begin(), rep_.end(), key, comp_);
+    return std::lower_bound(rep_.begin(), rep_.end(), key, comp_);
   }
 
   template <typename Key = key_type>
   const_iterator find(key_arg_t<Key> const& key) const {
-    return std::binary_search(rep_.begin(), rep_.end(), key, comp_);
+    return std::lower_bound(rep_.begin(), rep_.end(), key, comp_);
   }
 
   template <typename Key = key_type>
   bool contains(key_arg_t<Key> const& key) const {
-    auto const it = std::binary_search(rep_.begin(), rep_.end(), key, comp_);
+    auto const it = std::lower_bound(rep_.begin(), rep_.end(), key, comp_);
     return it != rep_.end();
   }
 
@@ -291,22 +284,22 @@ class raw_flat_set {
   }
 
   template <typename Key = key_type>
-  std::pair<iterator, iterator> lower_bound(key_arg_t<Key> const& key) {
+  iterator lower_bound(key_arg_t<Key> const& key) {
     return std::lower_bound(rep_.begin(), rep_.end(), key, comp_);
   }
 
   template <typename Key = key_type>
-  std::pair<const_iterator, const_iterator> lower_bound(key_arg_t<Key> const& key) const {
+  const_iterator lower_bound(key_arg_t<Key> const& key) const {
     return std::lower_bound(rep_.begin(), rep_.end(), key, comp_);
   }
 
   template <typename Key = key_type>
-  std::pair<iterator, iterator> upper_bound(key_arg_t<Key> const& key) {
+  iterator upper_bound(key_arg_t<Key> const& key) {
     return std::upper_bound(rep_.begin(), rep_.end(), key, comp_);
   }
 
   template <typename Key = key_type>
-  std::pair<const_iterator, const_iterator> upper_bound(key_arg_t<Key> const& key) const {
+  const_iterator upper_bound(key_arg_t<Key> const& key) const {
     return std::upper_bound(rep_.begin(), rep_.end(), key, comp_);
   }
 
