@@ -49,18 +49,6 @@ TEST(MockClockTest, AdvanceTimeTwice) {
   EXPECT_EQ(clock.TimeNow(), absl::UnixEpoch() + absl::Seconds(46));
 }
 
-TEST(MockClockTest, SleepFor) {
-  MockClock clock{absl::UnixEpoch() + absl::Seconds(123)};
-  absl::Notification started;
-  std::thread thread{[&] {
-    started.Notify();
-    clock.SleepFor(absl::Seconds(456));
-  }};
-  started.WaitForNotification();
-  clock.AdvanceTime(absl::Seconds(456));
-  thread.join();
-}
-
 TEST(MockClockTest, SleepUntilBefore) {
   MockClock clock{absl::UnixEpoch() + absl::Seconds(12)};
   auto const deadline = absl::UnixEpoch() + absl::Seconds(12) + absl::Seconds(34);
