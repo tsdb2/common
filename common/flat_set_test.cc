@@ -127,12 +127,13 @@ TEST(FlatSetTest, Traits) {
   EXPECT_TRUE((std::is_same_v<typename flat_set::pointer, TestKey*>));
   EXPECT_TRUE((std::is_same_v<typename flat_set::const_pointer, TestKey const*>));
   EXPECT_TRUE(
-      (std::is_same_v<typename flat_set::iterator, typename TestRepresentation::const_iterator>));
-  EXPECT_TRUE((std::is_same_v<typename flat_set::const_iterator, typename flat_set::iterator>));
+      (std::is_same_v<typename flat_set::iterator, typename TestRepresentation::iterator const>));
+  EXPECT_TRUE((std::is_same_v<typename flat_set::const_iterator,
+                              typename TestRepresentation::const_iterator>));
   EXPECT_TRUE((std::is_same_v<typename flat_set::reverse_iterator,
-                              typename TestRepresentation::const_reverse_iterator>));
+                              typename TestRepresentation::reverse_iterator const>));
   EXPECT_TRUE((std::is_same_v<typename flat_set::const_reverse_iterator,
-                              typename flat_set::reverse_iterator>));
+                              typename TestRepresentation::const_reverse_iterator>));
 }
 
 TEST(FlatSetTest, DefaultRepresentation) {
@@ -151,12 +152,13 @@ TEST(FlatSetTest, DefaultRepresentation) {
   EXPECT_TRUE((std::is_same_v<typename flat_set::pointer, TestKey*>));
   EXPECT_TRUE((std::is_same_v<typename flat_set::const_pointer, TestKey const*>));
   EXPECT_TRUE(
-      (std::is_same_v<typename flat_set::iterator, typename std::vector<TestKey>::const_iterator>));
-  EXPECT_TRUE((std::is_same_v<typename flat_set::const_iterator, typename flat_set::iterator>));
+      (std::is_same_v<typename flat_set::iterator, typename std::vector<TestKey>::iterator const>));
+  EXPECT_TRUE((std::is_same_v<typename flat_set::const_iterator,
+                              typename std::vector<TestKey>::const_iterator>));
   EXPECT_TRUE((std::is_same_v<typename flat_set::reverse_iterator,
-                              typename std::vector<TestKey>::const_reverse_iterator>));
+                              typename std::vector<TestKey>::reverse_iterator const>));
   EXPECT_TRUE((std::is_same_v<typename flat_set::const_reverse_iterator,
-                              typename flat_set::reverse_iterator>));
+                              typename std::vector<TestKey>::const_reverse_iterator>));
 }
 
 TEST(FlatSetTest, DefaultComparator) {
@@ -175,12 +177,13 @@ TEST(FlatSetTest, DefaultComparator) {
   EXPECT_TRUE((std::is_same_v<typename flat_set::pointer, TestKey*>));
   EXPECT_TRUE((std::is_same_v<typename flat_set::const_pointer, TestKey const*>));
   EXPECT_TRUE(
-      (std::is_same_v<typename flat_set::iterator, typename std::vector<TestKey>::const_iterator>));
-  EXPECT_TRUE((std::is_same_v<typename flat_set::const_iterator, typename flat_set::iterator>));
+      (std::is_same_v<typename flat_set::iterator, typename std::vector<TestKey>::iterator const>));
+  EXPECT_TRUE((std::is_same_v<typename flat_set::const_iterator,
+                              typename std::vector<TestKey>::const_iterator>));
   EXPECT_TRUE((std::is_same_v<typename flat_set::reverse_iterator,
-                              typename std::vector<TestKey>::const_reverse_iterator>));
+                              typename std::vector<TestKey>::reverse_iterator const>));
   EXPECT_TRUE((std::is_same_v<typename flat_set::const_reverse_iterator,
-                              typename flat_set::reverse_iterator>));
+                              typename std::vector<TestKey>::const_reverse_iterator>));
 }
 
 TEST(FlatSetTest, Construct) {
@@ -211,7 +214,7 @@ TEST(FlatSetTest, ConstructWithIterators) {
   EXPECT_THAT(fs4, TestKeysAre(-3, -2, -1, 1, 4, 5));
 }
 
-TEST(FlatSetTest, InitializerList) {
+TEST(FlatSetTest, ConstructWithInitializerList) {
   flat_set<TestKey, TestCompare, TestRepresentation> fs{-2, -3, 4, -1, -2, 1, 5, -3};
   EXPECT_THAT(fs, TestKeysAre(-3, -2, -1, 1, 4, 5));
 }

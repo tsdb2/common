@@ -1,5 +1,8 @@
 // This header provides `flat_set`, a drop-in replacement for std::set backed by a specified data
-// structure. When backed by an std::vector, flat_set behaves like a sorted array.
+// structure. When backed by an std::vector, flat_set behaves like a sorted array and is well suited
+// for read-mostly use cases and/or small-ish data structures. In those cases, being allocated in a
+// single heap block makes the data much more cache-friendly and efficient. For any uses cases with
+// large (but still read-mostly) datasets, you may use std::deque instead of std::vector.
 
 #ifndef __TSDB2_COMMON_FLAT_SET_H__
 #define __TSDB2_COMMON_FLAT_SET_H__
@@ -19,9 +22,9 @@ struct flat_set_traits {
   using key_type = Key;
   using value_type = Key;
 
-  using iterator = typename Representation::const_iterator;
+  using iterator = typename Representation::iterator const;
   using const_iterator = typename Representation::const_iterator;
-  using reverse_iterator = typename Representation::const_reverse_iterator;
+  using reverse_iterator = typename Representation::reverse_iterator const;
   using const_reverse_iterator = typename Representation::const_reverse_iterator;
 
   class node {
@@ -125,9 +128,15 @@ class flat_set : private internal::raw_flat_set<flat_set_traits<Key, Representat
   using raw_flat_set::size;
 
   using raw_flat_set::clear;
-
   using raw_flat_set::emplace;
+  using raw_flat_set::erase;
+  using raw_flat_set::extract;
   using raw_flat_set::insert;
+  using raw_flat_set::swap;
+
+  using raw_flat_set::ExtractRep;
+
+  using raw_flat_set::count;
 
   // TODO
 };

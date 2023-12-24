@@ -1,2 +1,1 @@
 build --client_env=CC=clang --cxxopt='-std=c++17' --cxxopt='-Wno-unused-function'
-  --host_cxxopt='-std=c++17' --host_cxxopt='-Wno-unused-function'

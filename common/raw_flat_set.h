@@ -6,6 +6,7 @@
 #include <initializer_list>
 #include <iterator>
 #include <memory>
+#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -13,6 +14,16 @@
 namespace tsdb2 {
 namespace common {
 namespace internal {
+
+template <typename KeyType, typename KeyArg, typename Compare, typename IsTransparent = void>
+struct key_arg {
+  using type = KeyType;
+};
+
+template <typename KeyType, typename KeyArg, typename Compare>
+struct key_arg<KeyType, KeyArg, Compare, std::void_t<typename Compare::is_transparent>> {
+  using type = KeyArg;
+};
 
 // Internal implementation of `flat_set` and `flat_map`.
 template <typename Traits, typename Compare, typename Representation>
@@ -30,7 +41,7 @@ class raw_flat_set {
   using const_reference = value_type const&;
   using pointer = typename std::allocator_traits<allocator_type>::pointer;
   using const_pointer = typename std::allocator_traits<allocator_type>::const_pointer;
-  using iterator = typename Traits::const_iterator;
+  using iterator = typename Traits::iterator;
   using const_iterator = typename Traits::const_iterator;
   using reverse_iterator = typename Traits::reverse_iterator;
   using const_reverse_iterator = typename Traits::const_reverse_iterator;
@@ -42,6 +53,9 @@ class raw_flat_set {
     bool inserted;
     node_type node;
   };
+
+  template <typename Arg>
+  using key_arg_t = typename key_arg<key_type, Arg, Compare>::type;
 
   raw_flat_set() : raw_flat_set(Compare()) {}
 
@@ -96,19 +110,19 @@ class raw_flat_set {
 
   allocator_type get_allocator() const noexcept { return rep_.get_allocator(); }
 
-  iterator begin() noexcept { return iterator(rep_.begin()); }
-  const_iterator begin() const noexcept { return iterator(rep_.begin()); }
-  const_iterator cbegin() const noexcept { return iterator(rep_.cbegin()); }
-  iterator end() noexcept { return iterator(rep_.end()); }
-  const_iterator end() const noexcept { return iterator(rep_.end()); }
-  const_iterator cend() const noexcept { return iterator(rep_.cend()); }
+  iterator begin() noexcept { return rep_.begin(); }
+  const_iterator begin() const noexcept { return rep_.begin(); }
+  const_iterator cbegin() const noexcept { return rep_.cbegin(); }
+  iterator end() noexcept { return rep_.end(); }
+  const_iterator end() const noexcept { return rep_.end(); }
+  const_iterator cend() const noexcept { return rep_.cend(); }
 
-  iterator rbegin() noexcept { return iterator(rep_.rbegin()); }
-  const_iterator rbegin() const noexcept { return iterator(rep_.rbegin()); }
-  const_iterator crbegin() const noexcept { return iterator(rep_.crbegin()); }
-  iterator rend() noexcept { return iterator(rep_.rend()); }
-  const_iterator rend() const noexcept { return iterator(rep_.rend()); }
-  const_iterator crend() const noexcept { return iterator(rep_.crend()); }
+  iterator rbegin() noexcept { return rep_.rbegin(); }
+  const_iterator rbegin() const noexcept { return rep_.rbegin(); }
+  const_iterator crbegin() const noexcept { return rep_.crbegin(); }
+  iterator rend() noexcept { return rep_.rend(); }
+  const_iterator rend() const noexcept { return rep_.rend(); }
+  const_iterator crend() const noexcept { return rep_.crend(); }
 
   bool empty() const noexcept { return rep_.empty(); }
   size_type size() const noexcept { return rep_.size(); }
@@ -180,6 +194,65 @@ class raw_flat_set {
   template <typename... Args>
   std::pair<iterator, bool> emplace(Args&&... args) {
     return insert(value_type(std::forward<Args>(args)...));
+  }
+
+  iterator erase(iterator pos) { rep_.erase(pos); }
+  iterator erase(const_iterator pos) { rep_.erase(pos); }
+  iterator erase(const_iterator first, const_iterator last) { rep_.erase(first, last); }
+
+  template <typename Key = key_type>
+  size_type erase(key_arg_t<Key>&& key) {
+    return rep_.erase(std::binary_search(rep_.begin(), rep_.end(), key, comp_));
+  }
+
+  void swap(raw_flat_set& other) noexcept {
+    std::swap(comp_, other.comp_);
+    rep_.swap(other.rep_);
+  }
+
+  friend void swap(raw_flat_set& lhs, raw_flat_set& rhs) noexcept { lhs.swap(rhs); }
+
+  node_type extract(iterator position) {
+    node_type node{std::move(*position)};
+    rep_.erase(position);
+    return node;
+  }
+
+  node_type extract(const_iterator position) {
+    node_type node{std::move(*position)};
+    rep_.erase(position);
+    return node;
+  }
+
+  template <typename Key = key_type>
+  node_type extract(key_arg_t<Key>&& key) {
+    return extract(std::binary_search(rep_.begin(), rep_.end(), key, comp_));
+  }
+
+  // TODO: merge methods.
+
+  [[nodiscard]] Representation&& ExtractRep() && { return rep_; }
+
+  template <typename Key = key_type>
+  size_type count(key_arg_t<Key> const& key) const {
+    auto const it = std::binary_search(rep_.begin(), rep_.end(), key, comp_);
+    return it != rep_.end();
+  }
+
+  template <typename Key = key_type>
+  iterator find(key_arg_t<Key> const& key) {
+    return std::binary_search(rep_.begin(), rep_.end(), key, comp_);
+  }
+
+  template <typename Key = key_type>
+  const_iterator find(key_arg_t<Key> const& key) const {
+    return std::binary_search(rep_.begin(), rep_.end(), key, comp_);
+  }
+
+  template <typename Key = key_type>
+  bool contains(key_arg_t<Key> const& key) const {
+    auto const it = std::binary_search(rep_.begin(), rep_.end(), key, comp_);
+    return it != rep_.end();
   }
 
   // TODO
