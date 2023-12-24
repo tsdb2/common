@@ -1,6 +1,11 @@
 package(default_visibility = ["//visibility:public"])
 
 cc_library(
+    name = "fixed",
+    hdrs = ["fixed.h"],
+)
+
+cc_library(
     name = "testing",
     testonly = True,
     hdrs = ["testing.h"],
@@ -23,6 +28,7 @@ cc_test(
     name = "flat_set_test",
     srcs = ["flat_set_test.cc"],
     deps = [
+        ":fixed",
         ":flat_set",
         "@com_google_googletest//:gtest_main",
     ],

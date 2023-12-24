@@ -5,6 +5,7 @@
 #define __TSDB2_COMMON_FLAT_SET_H__
 
 #include <functional>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -13,17 +14,49 @@
 namespace tsdb2 {
 namespace common {
 
-template <typename Key>
+template <typename Key, typename Representation>
 struct flat_set_traits {
   using key_type = Key;
   using value_type = Key;
+
+  using iterator = typename Representation::const_iterator;
+  using const_iterator = typename Representation::const_iterator;
+  using reverse_iterator = typename Representation::const_reverse_iterator;
+  using const_reverse_iterator = typename Representation::const_reverse_iterator;
+
+  class node {
+   public:
+    constexpr node() : value_(std::nullopt) {}
+
+    node(node&& other) noexcept = default;
+    node& operator=(node&& other) noexcept = default;
+
+    bool empty() const noexcept { return !value_.has_value(); }
+    explicit operator bool() const noexcept { return empty(); }
+
+    value_type& value() const& { return *value_; }
+    value_type&& value() && { return *std::move(value_); }
+
+    void swap(node& other) noexcept { value_.swap(other.value_); }
+    friend void swap(node& lhs, node& rhs) noexcept { lhs.swap(rhs); }
+
+   private:
+    node(node const&) = delete;
+    node& operator=(node const&) = delete;
+
+    std::optional<value_type> value_;
+  };
+
+  using node_type = node;
 };
 
 template <typename Key, typename Compare = std::less<Key>,
           typename Representation = std::vector<Key>>
-class flat_set : private internal::raw_flat_set<flat_set_traits<Key>, Compare, Representation> {
+class flat_set : private internal::raw_flat_set<flat_set_traits<Key, Representation>, Compare,
+                                                Representation> {
  public:
-  using raw_flat_set = internal::raw_flat_set<flat_set_traits<Key>, Compare, Representation>;
+  using raw_flat_set =
+      internal::raw_flat_set<flat_set_traits<Key, Representation>, Compare, Representation>;
 
   using key_type = typename raw_flat_set::key_type;
   using value_type = typename raw_flat_set::value_type;
@@ -71,7 +104,8 @@ class flat_set : private internal::raw_flat_set<flat_set_traits<Key>, Compare, R
   flat_set& operator=(flat_set&&) noexcept = default;
 
   flat_set& operator=(std::initializer_list<value_type> const init) {
-    return raw_flat_set::operator=(init);
+    raw_flat_set::operator=(init);
+    return *this;
   }
 
   using raw_flat_set::get_allocator;
@@ -81,7 +115,10 @@ class flat_set : private internal::raw_flat_set<flat_set_traits<Key>, Compare, R
   using raw_flat_set::cend;
   using raw_flat_set::end;
 
-  // TODO: reverse iterators
+  using raw_flat_set::crbegin;
+  using raw_flat_set::crend;
+  using raw_flat_set::rbegin;
+  using raw_flat_set::rend;
 
   using raw_flat_set::empty;
   using raw_flat_set::max_size;

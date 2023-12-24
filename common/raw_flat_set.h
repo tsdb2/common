@@ -30,22 +30,18 @@ class raw_flat_set {
   using const_reference = value_type const&;
   using pointer = typename std::allocator_traits<allocator_type>::pointer;
   using const_pointer = typename std::allocator_traits<allocator_type>::const_pointer;
+  using iterator = typename Traits::const_iterator;
+  using const_iterator = typename Traits::const_iterator;
+  using reverse_iterator = typename Traits::reverse_iterator;
+  using const_reverse_iterator = typename Traits::const_reverse_iterator;
 
-  class iterator {
-   public:
-    // TODO
+  using node_type = typename Traits::node;
 
-   private:
-    friend class raw_flat_set;
-
-    explicit iterator(typename representation_type::iterator it) : it_(std::move(it)) {}
-
-    typename Representation::iterator it_;
+  struct insert_return_type {
+    iterator position;
+    bool inserted;
+    node_type node;
   };
-
-  using const_iterator = iterator const;
-  using reverse_iterator = std::reverse_iterator<iterator>;
-  using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
   raw_flat_set() : raw_flat_set(Compare()) {}
 
@@ -59,7 +55,7 @@ class raw_flat_set {
                         allocator_type const& alloc = allocator_type())
       : comp_(comp), rep_(alloc) {
     for (; first != last; ++first) {
-      emplace(*first);
+      insert(*first);
     }
   }
 
@@ -85,7 +81,7 @@ class raw_flat_set {
                allocator_type const& alloc = allocator_type())
       : comp_(comp), rep_(alloc) {
     for (auto& value : init) {
-      emplace(value);
+      insert(value);
     }
   }
 
@@ -94,7 +90,7 @@ class raw_flat_set {
 
   raw_flat_set& operator=(std::initializer_list<value_type> const init) {
     for (auto& value : init) {
-      emplace(value);
+      insert(value);
     }
   }
 
@@ -107,7 +103,12 @@ class raw_flat_set {
   const_iterator end() const noexcept { return iterator(rep_.end()); }
   const_iterator cend() const noexcept { return iterator(rep_.cend()); }
 
-  // TODO: reverse iterators
+  iterator rbegin() noexcept { return iterator(rep_.rbegin()); }
+  const_iterator rbegin() const noexcept { return iterator(rep_.rbegin()); }
+  const_iterator crbegin() const noexcept { return iterator(rep_.crbegin()); }
+  iterator rend() noexcept { return iterator(rep_.rend()); }
+  const_iterator rend() const noexcept { return iterator(rep_.rend()); }
+  const_iterator crend() const noexcept { return iterator(rep_.crend()); }
 
   bool empty() const noexcept { return rep_.empty(); }
   size_type size() const noexcept { return rep_.size(); }
@@ -117,21 +118,21 @@ class raw_flat_set {
 
   std::pair<iterator, bool> insert(value_type const& value) {
     auto it = std::lower_bound(rep_.begin(), rep_.end(), value, comp_);
-    if (it != rep_.end() || comp_(value, *it)) {
+    if (it == rep_.end() || comp_(value, *it)) {
       it = rep_.insert(it, value);
-      return std::make_pair(iterator(it), true);
+      return std::make_pair(it, true);
     } else {
-      return std::make_pair(iterator(it), false);
+      return std::make_pair(it, false);
     }
   }
 
   std::pair<iterator, bool> insert(value_type&& value) {
     auto it = std::lower_bound(rep_.begin(), rep_.end(), value, comp_);
-    if (it != rep_.end() || comp_(value, *it)) {
+    if (it == rep_.end() || comp_(value, *it)) {
       it = rep_.insert(it, std::move(value));
-      return std::make_pair(iterator(it), true);
+      return std::make_pair(it, true);
     } else {
-      return std::make_pair(iterator(it), false);
+      return std::make_pair(it, false);
     }
   }
 
@@ -158,18 +159,27 @@ class raw_flat_set {
     }
   }
 
-  // TODO: node handles
+  insert_return_type insert(node_type&& node) {
+    if (node) {
+      auto [it, inserted] = insert(std::move(node).value());
+      if (inserted) {
+        return {it, true};
+      } else {
+        return {it, false, std::move(node)};
+      }
+    } else {
+      return {rep_.end(), false, std::move(node)};
+    }
+  }
+
+  iterator insert(const_iterator pos, node_type&& node) {
+    auto [it, unused_inserted, unused_node] = insert(std::move(node));
+    return it;
+  }
 
   template <typename... Args>
   std::pair<iterator, bool> emplace(Args&&... args) {
-    value_type value{std::forward<Args>(args)...};
-    auto it = std::lower_bound(rep_.begin(), rep_.end(), value, comp_);
-    if (it != rep_.end() || comp_(value, *it)) {
-      it = rep_.insert(it, std::move(value));
-      return std::make_pair(iterator(it), true);
-    } else {
-      return std::make_pair(iterator(it), false);
-    }
+    return insert(value_type(std::forward<Args>(args)...));
   }
 
   // TODO
