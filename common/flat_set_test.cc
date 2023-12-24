@@ -11,6 +11,8 @@ namespace {
 using ::tsdb2::common::flat_set;
 
 struct TestKey {
+  TestKey(int const field_value) : field(field_value) {}
+
   int field;
 };
 
@@ -89,10 +91,25 @@ TEST(FlatSetTest, DefaultComparator) {
       (std::is_same_v<typename flat_set::const_iterator, typename flat_set::iterator const>));
 }
 
-TEST(FlatSetTest, Construct) { flat_set<TestKey, TestCompare, TestRepresentation>(); }
+TEST(FlatSetTest, Construct) {
+  flat_set<TestKey, TestCompare, TestRepresentation> fs1{TestCompare(), TestAllocator()};
+  EXPECT_TRUE(fs1.empty());
+  flat_set<TestKey, TestCompare, TestRepresentation> fs2{TestCompare()};
+  EXPECT_TRUE(fs2.empty());
+  flat_set<TestKey, TestCompare, TestRepresentation> fs3{TestAllocator()};
+  EXPECT_TRUE(fs3.empty());
+  flat_set<TestKey, TestCompare, TestRepresentation> fs4{};
+  EXPECT_TRUE(fs4.empty());
+}
 
-TEST(FlatSetTest, ConstructWithCompare) {
-  flat_set<TestKey, TestCompare, TestRepresentation> fs{TestCompare()};
+TEST(FlatSetTest, ConstructWithIterators) {
+  std::vector<TestKey> keys{-2, -3, 4, -1, -2, 1, 5, -3};
+  flat_set<TestKey, TestCompare, TestRepresentation> fs1{keys.begin(), keys.end(), TestCompare(),
+                                                         TestAllocator()};
+  flat_set<TestKey, TestCompare, TestRepresentation> fs2{keys.begin(), keys.end(), TestCompare()};
+  flat_set<TestKey, TestCompare, TestRepresentation> fs3{keys.begin(), keys.end(), TestAllocator()};
+  flat_set<TestKey, TestCompare, TestRepresentation> fs4{keys.begin(), keys.end()};
+  // TODO: check the elements of each.
 }
 
 // TODO

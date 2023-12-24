@@ -50,8 +50,8 @@ class flat_set : private internal::raw_flat_set<flat_set_traits<Key>, Compare, R
   explicit flat_set(allocator_type const& alloc) : raw_flat_set(alloc) {}
 
   template <typename InputIt>
-  explicit flat_set(InputIt first, InputIt last, Compare const& compare,
-                    allocator_type const& alloc)
+  explicit flat_set(InputIt first, InputIt last, Compare const& compare = Compare(),
+                    allocator_type const& alloc = allocator_type())
       : raw_flat_set(first, last, compare, alloc) {}
 
   template <typename InputIt>
@@ -81,14 +81,16 @@ class flat_set : private internal::raw_flat_set<flat_set_traits<Key>, Compare, R
   using raw_flat_set::cend;
   using raw_flat_set::end;
 
-  // TODO
+  // TODO: reverse iterators
 
   using raw_flat_set::empty;
+  using raw_flat_set::max_size;
   using raw_flat_set::size;
 
-  // TODO
+  using raw_flat_set::clear;
 
   using raw_flat_set::emplace;
+  using raw_flat_set::insert;
 
   // TODO
 };

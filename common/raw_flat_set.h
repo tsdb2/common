@@ -55,8 +55,8 @@ class raw_flat_set {
   explicit raw_flat_set(allocator_type const& alloc) : rep_(alloc) {}
 
   template <typename InputIt>
-  explicit raw_flat_set(InputIt first, InputIt last, Compare const& comp,
-                        allocator_type const& alloc)
+  explicit raw_flat_set(InputIt first, InputIt last, Compare const& comp = Compare(),
+                        allocator_type const& alloc = allocator_type())
       : comp_(comp), rep_(alloc) {
     for (; first != last; ++first) {
       emplace(*first);
@@ -107,22 +107,68 @@ class raw_flat_set {
   const_iterator end() const noexcept { return iterator(rep_.end()); }
   const_iterator cend() const noexcept { return iterator(rep_.cend()); }
 
-  // TODO
+  // TODO: reverse iterators
 
   bool empty() const noexcept { return rep_.empty(); }
   size_type size() const noexcept { return rep_.size(); }
+  size_type max_size() const noexcept { return rep_.max_size(); }
 
-  // TODO
+  void clear() noexcept { rep_.clear(); }
+
+  std::pair<iterator, bool> insert(value_type const& value) {
+    auto it = std::lower_bound(rep_.begin(), rep_.end(), value, comp_);
+    if (it != rep_.end() || comp_(value, *it)) {
+      it = rep_.insert(it, value);
+      return std::make_pair(iterator(it), true);
+    } else {
+      return std::make_pair(iterator(it), false);
+    }
+  }
+
+  std::pair<iterator, bool> insert(value_type&& value) {
+    auto it = std::lower_bound(rep_.begin(), rep_.end(), value, comp_);
+    if (it != rep_.end() || comp_(value, *it)) {
+      it = rep_.insert(it, std::move(value));
+      return std::make_pair(iterator(it), true);
+    } else {
+      return std::make_pair(iterator(it), false);
+    }
+  }
+
+  iterator insert(const_iterator pos, value_type const& value) {
+    auto [it, unused] = insert(value);
+    return it;
+  }
+
+  iterator insert(const_iterator pos, value_type&& value) {
+    auto [it, unused] = insert(std::move(value));
+    return it;
+  }
+
+  template <typename InputIt>
+  void insert(InputIt first, InputIt last) {
+    for (; first != last; ++first) {
+      insert(*first);
+    }
+  }
+
+  void insert(std::initializer_list<value_type> const init) {
+    for (auto& value : init) {
+      insert(value);
+    }
+  }
+
+  // TODO: node handles
 
   template <typename... Args>
   std::pair<iterator, bool> emplace(Args&&... args) {
-    key_type key{std::forward<Args>(args)...};
-    auto it = std::lower_bound(rep_.begin(), rep_.end(), key, comp_);
-    if (comp_(key, *it)) {
-      it = rep_.insert(it, std::move(key));
-      return std::make_pair(it, true);
+    value_type value{std::forward<Args>(args)...};
+    auto it = std::lower_bound(rep_.begin(), rep_.end(), value, comp_);
+    if (it != rep_.end() || comp_(value, *it)) {
+      it = rep_.insert(it, std::move(value));
+      return std::make_pair(iterator(it), true);
     } else {
-      return std::make_pair(it, false);
+      return std::make_pair(iterator(it), false);
     }
   }
 
