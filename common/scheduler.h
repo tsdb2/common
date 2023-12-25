@@ -377,24 +377,19 @@ class Scheduler {
 
   bool CancelInternal(Handle handle, bool blocking) ABSL_LOCKS_EXCLUDED(mutex_);
 
-  absl::StatusOr<Task *> FetchTask(Worker *worker, Task *last_task) ABSL_LOCKS_EXCLUDED(mutex_);
+  absl::StatusOr<Task *> FetchTask(Worker *worker, Task *previous) ABSL_LOCKS_EXCLUDED(mutex_);
 
   Options const options_;
   Clock const *const clock_;
 
   absl::Mutex mutable mutex_;
-  absl::node_hash_set<Task, Task::Hash, Task::Equals> tasks_ ABSL_GUARDED_BY(mutex_);
-  std::vector<TaskRef> queue_ ABSL_GUARDED_BY(mutex_);
 
-  // Indicates whether the task at the top of the queue is due. This flag MUST be updated every time
-  // `queue_` is modified, as it's used for conditional locking to wake up a worker to run the task.
-  // The value of this flag can be calculated by calling `is_task_due()`.
-  //
-  // NOTE: we need to cache the value of `is_task_due()` in this flag for use in conditional locking
-  // because locking conditions can only access state guarded by the mutex and must otherwise be
-  // pure, so fetching the clock is not allowed. `is_task_due()` needs to fetch the clock to
-  // determine whether and task is due, so it cannot be invoked directly in locking conditions.
-  bool task_due_ ABSL_GUARDED_BY(mutex_) = false;
+  // Contains all tasks, indexed by handle.
+  absl::node_hash_set<Task, Task::Hash, Task::Equals> tasks_ ABSL_GUARDED_BY(mutex_);
+
+  // Priority queue of tasks indexed by due time. This is a min-heap and is managed with STL
+  // algorithms (std::push_heap and std::pop_heap).
+  std::vector<TaskRef> queue_ ABSL_GUARDED_BY(mutex_);
 
   State state_ ABSL_GUARDED_BY(mutex_) = State::IDLE;
   std::vector<std::unique_ptr<Worker>> workers_ ABSL_GUARDED_BY(mutex_);
