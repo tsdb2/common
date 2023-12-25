@@ -52,6 +52,8 @@ void Scheduler::Stop() {
   }
   {
     absl::MutexLock lock{&mutex_};
+    queue_.clear();
+    tasks_.clear();
     state_ = State::STOPPED;
   }
 }
@@ -61,7 +63,7 @@ absl::Status Scheduler::WaitUntilAllWorkersAsleep() const {
   mutex_.Await(SimpleCondition([this]() ABSL_SHARED_LOCKS_REQUIRED(mutex_) {
     return state_ != State::STARTED ||
            (absl::c_all_of(workers_, [](auto const &worker) { return worker->is_sleeping(); }) &&
-            !event_due_);
+            !task_due_);
   }));
   if (state_ > State::STARTED) {
     return absl::CancelledError("");
@@ -71,15 +73,15 @@ absl::Status Scheduler::WaitUntilAllWorkersAsleep() const {
 }
 
 // Handles start from 1 because 0 is reserved as an invalid handle value.
-SequenceNumber Scheduler::Event::handle_generator_{1};
+SequenceNumber Scheduler::Task::handle_generator_{1};
 
 void Scheduler::Worker::Run() {
-  Event *event = nullptr;
+  Task *task = nullptr;
   while (true) {
-    auto const status_or_event = parent_->FetchEvent(this, event);
-    if (status_or_event.ok()) {
-      event = status_or_event.value();
-      event->Run();
+    auto const status_or_task = parent_->FetchTask(this, task);
+    if (status_or_task.ok()) {
+      task = status_or_task.value();
+      task->Run();
     } else {
       return;
     }
@@ -89,86 +91,85 @@ void Scheduler::Worker::Run() {
 Scheduler::Handle Scheduler::ScheduleInternal(Callback callback, absl::Time const due_time,
                                               std::optional<absl::Duration> const period) {
   absl::MutexLock lock{&mutex_};
-  auto const [it, _] = events_.emplace(std::move(callback), due_time, period);
-  Event &event = const_cast<Event &>(*it);
-  queue_.emplace_back(&event);
-  std::push_heap(queue_.begin(), queue_.end(), CompareEvents());
-  if (!event_due_) {
-    event_due_ = event.due_time() <= clock_->TimeNow();
+  auto const [it, _] = tasks_.emplace(std::move(callback), due_time, period);
+  Task &task = const_cast<Task &>(*it);
+  queue_.emplace_back(&task);
+  std::push_heap(queue_.begin(), queue_.end(), CompareTasks());
+  if (!task_due_) {
+    task_due_ = task.due_time() <= clock_->TimeNow();
   }
-  return event.handle();
+  return task.handle();
 }
 
 bool Scheduler::CancelInternal(Handle const handle, bool const blocking) {
   absl::MutexLock lock{&mutex_};
-  auto const it = events_.find(handle);
-  if (it == events_.end()) {
+  auto const it = tasks_.find(handle);
+  if (it == tasks_.end()) {
     return false;
   }
-  auto &event = const_cast<Event &>(*it);
-  event.set_cancelled(true);
-  auto *const ref = event.ref();
+  auto &task = const_cast<Task &>(*it);
+  task.set_cancelled(true);
+  auto *const ref = task.ref();
   if (ref) {
     size_t const i = ref - queue_.data();
-    event.set_due_time(absl::InfinitePast());
-    CompareEvents compare;
+    task.set_due_time(absl::InfinitePast());
+    CompareTasks compare;
     std::push_heap(queue_.begin(), queue_.begin() + i + 1, compare);
     std::pop_heap(queue_.begin(), queue_.end(), compare);
     queue_.pop_back();
-    events_.erase(handle);
-    event_due_ = is_event_due();
+    tasks_.erase(handle);
+    task_due_ = is_task_due();
     return true;
   } else {
     if (blocking) {
       mutex_.Await(SimpleCondition([this, handle]() ABSL_SHARED_LOCKS_REQUIRED(mutex_) {
-        return !events_.contains(handle);
+        return !tasks_.contains(handle);
       }));
     }
     return false;
   }
 }
 
-absl::StatusOr<Scheduler::Event *> Scheduler::FetchEvent(Worker *const worker,
-                                                         Event *const last_event) {
+absl::StatusOr<Scheduler::Task *> Scheduler::FetchTask(Worker *const worker,
+                                                       Task *const last_task) {
   absl::MutexLock lock{&mutex_};
   Worker::SleepScope worker_sleep_scope{worker};
-  if (last_event) {
-    if (!last_event->cancelled() && last_event->is_periodic()) {
-      auto const period = last_event->period();
-      auto const due_time = last_event->due_time();
-      last_event->set_due_time(due_time +
-                               std::max(absl::Ceil(clock_->TimeNow() - due_time, period), period));
-      queue_.emplace_back(last_event);
-      std::push_heap(queue_.begin(), queue_.end(), CompareEvents());
-      event_due_ = is_event_due();
+  if (last_task) {
+    if (!last_task->cancelled() && last_task->is_periodic()) {
+      auto const period = last_task->period();
+      auto const due_time = last_task->due_time();
+      last_task->set_due_time(due_time +
+                              std::max(absl::Ceil(clock_->TimeNow() - due_time, period), period));
+      queue_.emplace_back(last_task);
+      std::push_heap(queue_.begin(), queue_.end(), CompareTasks());
+      task_due_ = is_task_due();
     } else {
-      events_.erase(last_event->handle());
+      tasks_.erase(last_task->handle());
     }
   }
   auto const queue_not_empty_condition =
       SimpleCondition([this]() ABSL_SHARED_LOCKS_REQUIRED(mutex_) {
         return state_ > State::STARTED || !queue_.empty();
       });
-  auto const event_due_condition = SimpleCondition([this]() ABSL_SHARED_LOCKS_REQUIRED(mutex_) {
-    return state_ > State::STARTED || event_due_;
-  });
+  auto const task_due_condition = SimpleCondition(
+      [this]() ABSL_SHARED_LOCKS_REQUIRED(mutex_) { return state_ > State::STARTED || task_due_; });
   while (true) {
     mutex_.Await(queue_not_empty_condition);
     if (state_ > State::STARTED) {
       return absl::AbortedError("");
     }
-    clock_->AwaitWithDeadline(&mutex_, event_due_condition, queue_.front()->due_time());
+    clock_->AwaitWithDeadline(&mutex_, task_due_condition, queue_.front()->due_time());
     if (state_ > State::STARTED) {
       return absl::AbortedError("");
     }
-    std::pop_heap(queue_.begin(), queue_.end(), CompareEvents());
-    auto const event = queue_.back().Get();
+    std::pop_heap(queue_.begin(), queue_.end(), CompareTasks());
+    auto const task = queue_.back().Get();
     queue_.pop_back();
-    event_due_ = is_event_due();
-    if (event->cancelled()) {
-      events_.erase(event->handle());
+    task_due_ = is_task_due();
+    if (task->cancelled()) {
+      tasks_.erase(task->handle());
     } else {
-      return event;
+      return task;
     }
   }
 }

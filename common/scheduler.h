@@ -25,12 +25,12 @@
 namespace tsdb2 {
 namespace common {
 
-// Manages the scheduling of generic runnable events. Supports both blocking and non-blocking event
-// cancellation, as well as recurring (aka periodic) events that are automatically rescheduled after
+// Manages the scheduling of generic runnable tasks. Supports both blocking and non-blocking task
+// cancellation, as well as recurring (aka periodic) tasks that are automatically rescheduled after
 // every run.
 //
 // Under the hood this class uses a fixed (configurable) number of worker threads that wait on the
-// event queue and run each event as soon as it's due.
+// task queue and run each task as soon as it's due.
 //
 // This class is fully thread-safe.
 class Scheduler {
@@ -54,20 +54,20 @@ class Scheduler {
     // Constructed but not yet started.
     IDLE = 0,
 
-    // Started. The worker threads are processing the events.
+    // Started. The worker threads are processing the tasks.
     STARTED = 1,
 
-    // Stop started. Waiting for current events, no more events will be executed.
+    // Stopping. Waiting for current tasks to finish, no more tasks will be executed.
     STOPPING = 2,
 
-    // Stopped. All workers joined, no more events will be executed.
+    // Stopped. All workers joined, no more tasks will be executed.
     STOPPED = 3,
   };
 
   // Type of the callback functions that can be scheduled in the scheduler.
   using Callback = absl::AnyInvocable<void()>;
 
-  // Handles are unique event IDs.
+  // Handles are unique task IDs.
   using Handle = uintptr_t;
 
   static Handle constexpr kInvalidHandle = 0;
@@ -81,7 +81,7 @@ class Scheduler {
     }
   }
 
-  // The destructor calls `Stop`, meaning that it implicitly stops and joins all workers.
+  // The destructor calls `Stop`, implicitly stopping and joining all workers.
   ~Scheduler() { Stop(); }
 
   // Returns the current state of the scheduler. See the `State` enum for more details.
@@ -97,71 +97,71 @@ class Scheduler {
 
   // Stops and joins all workers.
   //
-  // The scheduler will be in state `STOPPING` through the execution of this method. Upon `Stop`
-  // returning, the scheduler is guaranteed to be in state `STOPPED`.
+  // The scheduler will be in state `STOPPING` through the execution of this method. When `Stop`
+  // returns, the scheduler is guaranteed to be in state `STOPPED`.
   //
-  // `Start` had never been called (i.e. the scheduler is in state `IDLE` when `Stop` is called)
+  // If `Start` had never been called (i.e. the scheduler is in state `IDLE` when `Stop` is called)
   // this method will still make the scheduler transition to the `STOPPED` state, preventing it from
-  // being able to ever run any events.
+  // ever being able to run any tasks.
   //
   // If `Stop is called concurrently multiple times, all calls block until the workers are joined.
   void Stop() ABSL_LOCKS_EXCLUDED(mutex_);
 
-  // Schedules an event to be executed ASAP. `callback` is the function to execute. The returned
-  // `Key` can be used to cancel the event using `Cancel`.
+  // Schedules a task to be executed ASAP. `callback` is the function to execute. The returned
+  // `Key` can be used to cancel the task using `Cancel`.
   Handle ScheduleNow(Callback callback) {
     return ScheduleInternal(std::move(callback), clock_->TimeNow(), std::nullopt);
   }
 
-  // Schedules an event to be executed at the specified time.
+  // Schedules a task to be executed at the specified time.
   Handle ScheduleAt(Callback callback, absl::Time const due_time) {
     return ScheduleInternal(std::move(callback), due_time, std::nullopt);
   }
 
-  // Schedules an event to be executed at now+`delay`.
+  // Schedules a task to be executed at now+`delay`.
   Handle ScheduleIn(Callback callback, absl::Duration const delay) {
     return ScheduleInternal(std::move(callback), clock_->TimeNow() + delay, std::nullopt);
   }
 
-  // Schedules a recurring event to be executed once every `period`, starting ASAP.
+  // Schedules a recurring task to be executed once every `period`, starting ASAP.
   Handle ScheduleRecurring(Callback callback, absl::Duration const period) {
     return ScheduleInternal(std::move(callback), clock_->TimeNow(), period);
   }
 
-  // Schedules a recurring event to be executed once every `period`, starting at `due_time`.
+  // Schedules a recurring task to be executed once every `period`, starting at `due_time`.
   Handle ScheduleRecurringAt(Callback callback, absl::Time const due_time,
                              absl::Duration const period) {
     return ScheduleInternal(std::move(callback), due_time, period);
   }
 
-  // Schedules a recurring event to be executed once every `period`, starting at now+`delay`.
+  // Schedules a recurring task to be executed once every `period`, starting at now+`delay`.
   Handle ScheduleRecurringIn(Callback callback, absl::Duration const delay,
                              absl::Duration const period) {
     return ScheduleInternal(std::move(callback), clock_->TimeNow() + delay, period);
   }
 
-  // Cancels the event with the specified handle. Does nothing if the handle is invalid for any
-  // reason, e.g. if a past event with this handle has already finished running.
+  // Cancels the task with the specified handle. Does nothing if the handle is invalid for any
+  // reason, e.g. if a past task with this handle has already finished running.
   //
-  // If the event has already started running but hasn't yet finished when this method is invoked,
-  // the event will finish running normally. In any case this method returns immediately.
+  // If the task has already started running but hasn't yet finished when this method is invoked,
+  // the task will finish running normally. In any case this method returns immediately.
   //
-  // The returned boolean indicates whether actual cancellation happened: it is true iff the event
-  // was in the queue and hadn't started yet.
+  // The returned boolean indicates whether actual cancellation happened: it is true iff the task
+  // was in the queue and hadn't yet started.
   bool Cancel(Handle const handle) { return CancelInternal(handle, /*blocking=*/false); }
 
-  // Cancels the event with the specified handle. Does nothing if the handle is invalid for any
-  // reason, e.g. if a past event with this handle has already finished running.
+  // Cancels the task with the specified handle. Does nothing if the handle is invalid for any
+  // reason, e.g. if a past task with this handle has already finished running.
   //
-  // If the event has already started running but hasn't yet finished when this method is invoked,
-  // the event will finish running normally and this method will block until then.
+  // If the task has already started running but hasn't yet finished when this method is invoked,
+  // the task will finish running normally and this method will block until then.
   //
-  // The returned boolean indicates whether actual cancellation happened: it is true iff the event
+  // The returned boolean indicates whether actual cancellation happened: it is true iff the task
   // was in the queue and hadn't started yet.
   bool BlockingCancel(Handle const handle) { return CancelInternal(handle, /*blocking=*/true); }
 
-  // TEST ONLY: wait until all due events have been processed and all workers are asleep. This
-  // method only makes sense in testing scenarios with a `MockClock`, otherwise if more events are
+  // TEST ONLY: wait until all due tasks have been processed and all workers are asleep. This
+  // method only makes sense in testing scenarios using a `MockClock`, otherwise if more tasks are
   // scheduled in the queue and close enough in the future there's no guarantee that the workers
   // won't wake up again by the time this method returns. The time of a `MockClock` on the other
   // hand will only advance as decided in the test, so the workers are guaranteed to remain asleep
@@ -169,24 +169,24 @@ class Scheduler {
   absl::Status WaitUntilAllWorkersAsleep() const ABSL_LOCKS_EXCLUDED(mutex_);
 
  private:
-  class EventRef;
+  class TaskRef;
 
-  // Represents a scheduled event. This class is NOT thread-safe. Thread safety must be guaranteed
-  // by `Scheduler::mutex_`.
-  class Event final {
+  // Represents a scheduled task. This class is NOT thread-safe. Thread safety must be guaranteed by
+  // `Scheduler::mutex_`.
+  class Task final {
    public:
-    // Custom hash functor to store Event objects in a node_hash_set.
+    // Custom hash functor to store Task objects in a node_hash_set.
     struct Hash {
       using is_transparent = void;
-      size_t operator()(Event const &event) const { return absl::HashOf(event.handle()); }
+      size_t operator()(Task const &task) const { return absl::HashOf(task.handle()); }
       size_t operator()(Handle const &handle) const { return absl::HashOf(handle); }
     };
 
-    // Custom equals functor to store Event objects in a node_hash_set.
+    // Custom equals functor to store Task objects in a node_hash_set.
     struct Equals {
       using is_transparent = void;
 
-      static Handle ToHandle(Event const &event) { return event.handle(); }
+      static Handle ToHandle(Task const &task) { return task.handle(); }
       static Handle ToHandle(Handle const &handle) { return handle; }
 
       template <typename LHS, typename RHS>
@@ -195,17 +195,17 @@ class Scheduler {
       }
     };
 
-    explicit Event(Callback callback, absl::Time const due_time,
-                   std::optional<absl::Duration> const period)
+    explicit Task(Callback callback, absl::Time const due_time,
+                  std::optional<absl::Duration> const period)
         : callback_(std::move(callback)), due_time_(due_time), period_(period) {}
 
     Handle handle() const { return handle_; }
 
-    EventRef const *ref() const { return ref_; }
-    void set_ref(EventRef const *const ref) { ref_ = ref; }
+    TaskRef const *ref() const { return ref_; }
+    void set_ref(TaskRef const *const ref) { ref_ = ref; }
 
-    void CheckRef(EventRef const *const ref) const {
-      DCHECK_EQ(ref_, ref) << "invalid event backlink!";
+    void CheckRef(TaskRef const *const ref) const {
+      DCHECK_EQ(ref_, ref) << "invalid scheduler task backlink!";
     }
 
     absl::Time due_time() const { return due_time_; }
@@ -220,83 +220,92 @@ class Scheduler {
     void Run() { callback_(); }
 
    private:
-    Event(Event const &) = delete;
-    Event &operator=(Event const &) = delete;
-    Event(Event &&) = delete;
-    Event &operator=(Event &&) = delete;
+    Task(Task const &) = delete;
+    Task &operator=(Task const &) = delete;
+    Task(Task &&) = delete;
+    Task &operator=(Task &&) = delete;
 
-    // Generates event handles.
+    // Generates task handles.
     static SequenceNumber handle_generator_;
 
-    // Unique ID for the event.
+    // Unique ID for the task.
     Handle const handle_ = handle_generator_.GetNext();
 
     Callback callback_;
     absl::Time due_time_;
     std::optional<absl::Duration> const period_;
 
-    // Backlink to the `EventRef` of this Event. The `EventRef` move constructor and assignment
+    // Backlink to the `TaskRef` of this Task. The `TaskRef` move constructor and assignment
     // operator take care of keeping this up to date.
-    EventRef const *ref_ = nullptr;
+    TaskRef const *ref_ = nullptr;
 
     bool cancelled_ = false;
   };
 
-  // This class acts as a smart pointer to an `Event` object and maintains a backlink to itself
-  // inside the referenced Event. The priority queue of the scheduler is a min-heap backed by an
-  // array of `EventRef` objects. The heap swap operations move the `EventRef`s which in turn update
-  // the backlinks of their respective events, and thanks to the backlinks an `Event` can determine
-  // its current index in the priority queue array. The index is in turn used for cancellation.
+  // This class acts as a smart pointer to a `Task` object and maintains a backlink to itself inside
+  // the referenced Task. The priority queue of the scheduler is a min-heap backed by an array of
+  // `TaskRef` objects. The heap swap operations move the `TaskRef`s which in turn update the
+  // backlinks of their respective tasks, and thanks to the backlinks a `Task` can determine its
+  // current index in the priority queue array. The index is in turn used for cancellation.
   //
-  // An EventRef can be empty, in which case no event backlinks to it. An event's backlink may also
-  // be null, in which case it means the event is not in the priority queue (i.e. it's being
-  // processed by a worker).
-  class EventRef final {
+  // A TaskRef can be empty, in which case no task backlinks to it. A task's backlink may also be
+  // null, in which case it means the task is not in the priority queue (i.e. it's being processed
+  // by a worker).
+  class TaskRef final {
    public:
-    explicit EventRef(Event *const event = nullptr) : event_(event) {
-      if (event_) {
-        event_->set_ref(this);
+    explicit TaskRef(Task *const task = nullptr) : task_(task) {
+      if (task_) {
+        task_->CheckRef(nullptr);
+        task_->set_ref(this);
       }
     }
 
-    ~EventRef() {
-      if (event_) {
-        event_->set_ref(nullptr);
+    ~TaskRef() {
+      if (task_) {
+        task_->CheckRef(this);
+        task_->set_ref(nullptr);
       }
     }
 
-    EventRef(EventRef &&other) noexcept : event_(other.event_) {
-      other.event_ = nullptr;
-      event_->set_ref(this);
+    TaskRef(TaskRef &&other) noexcept : task_(other.task_) {
+      if (task_) {
+        task_->CheckRef(&other);
+        other.task_ = nullptr;
+        task_->set_ref(this);
+      }
     }
 
-    EventRef &operator=(EventRef &&other) noexcept {
-      if (event_) {
-        event_->set_ref(nullptr);
+    TaskRef &operator=(TaskRef &&other) noexcept {
+      if (task_) {
+        task_->CheckRef(this);
+        task_->set_ref(nullptr);
       }
-      event_ = other.event_;
-      other.event_ = nullptr;
-      event_->set_ref(this);
+      task_ = other.task_;
+      if (task_) {
+        task_->CheckRef(&other);
+        other.task_ = nullptr;
+        task_->set_ref(this);
+      }
       return *this;
     }
 
-    Event *Get() const { return event_; }
-    explicit operator bool() const { return event_ != nullptr; }
-    Event *operator->() const { return event_; }
-    Event &operator*() const { return *event_; }
+    Task *Get() const { return task_; }
+    explicit operator bool() const { return task_ != nullptr; }
+    Task *operator->() const { return task_; }
+    Task &operator*() const { return *task_; }
 
    private:
-    EventRef(EventRef const &) = delete;
-    EventRef &operator=(EventRef const &) = delete;
+    TaskRef(TaskRef const &) = delete;
+    TaskRef &operator=(TaskRef const &) = delete;
 
-    Event *event_;
+    Task *task_;
   };
 
-  // This functor is used to index the events by due time in the `queue_` min-heap. We use
+  // This functor is used to index the tasks by due time in the `queue_` min-heap. We use
   // `operator>` to do the comparison because the STL algorithms implement a max-heap if `operator<`
   // is used.
-  struct CompareEvents {
-    bool operator()(EventRef const &lhs, EventRef const &rhs) const {
+  struct CompareTasks {
+    bool operator()(TaskRef const &lhs, TaskRef const &rhs) const {
       return lhs->due_time() > rhs->due_time();
     }
   };
@@ -308,7 +317,7 @@ class Scheduler {
   // parent `Scheduler`.
   class Worker final {
    public:
-    // Used by `Scheduler::FetchEvent` to manage the sleeping flag of the calling worker.
+    // Used by `Scheduler::FetchTask` to manage the sleeping flag of the calling worker.
     class SleepScope final {
      public:
       explicit SleepScope(Worker *const worker) : worker_(worker) { worker_->set_sleeping(true); }
@@ -326,7 +335,7 @@ class Scheduler {
     explicit Worker(Scheduler *const parent)
         : parent_(parent), thread_(absl::bind_front(&Worker::Run, this)) {}
 
-    // Indicates whether the worker is waiting for event.
+    // Indicates whether the worker is waiting for a task.
     bool is_sleeping() const { return sleeping_; }
 
     // Sets the worker's sleeping flag.
@@ -335,6 +344,11 @@ class Scheduler {
     void Join() { thread_.join(); }
 
    private:
+    Worker(Worker const &) = delete;
+    Worker &operator=(Worker const &) = delete;
+    Worker(Worker &&) = delete;
+    Worker &operator=(Worker &&) = delete;
+
     void Run();
 
     Scheduler *const parent_;
@@ -348,9 +362,9 @@ class Scheduler {
   Scheduler(Scheduler &&) = delete;
   Scheduler &operator=(Scheduler &&) = delete;
 
-  // Checks the state of the queue and determines whether an event is due. The returned value is
-  // used to update the `event_due_` flag below.
-  bool is_event_due() const ABSL_SHARED_LOCKS_REQUIRED(mutex_) {
+  // Checks the state of the queue and determines whether a task is due. The returned value is
+  // used to update the `task_due_` flag below.
+  bool is_task_due() const ABSL_SHARED_LOCKS_REQUIRED(mutex_) {
     if (queue_.empty()) {
       return false;
     }
@@ -363,25 +377,24 @@ class Scheduler {
 
   bool CancelInternal(Handle handle, bool blocking) ABSL_LOCKS_EXCLUDED(mutex_);
 
-  absl::StatusOr<Event *> FetchEvent(Worker *worker, Event *last_event) ABSL_LOCKS_EXCLUDED(mutex_);
+  absl::StatusOr<Task *> FetchTask(Worker *worker, Task *last_task) ABSL_LOCKS_EXCLUDED(mutex_);
 
   Options const options_;
   Clock const *const clock_;
 
   absl::Mutex mutable mutex_;
-  absl::node_hash_set<Event, Event::Hash, Event::Equals> events_ ABSL_GUARDED_BY(mutex_);
-  std::vector<EventRef> queue_ ABSL_GUARDED_BY(mutex_);
+  absl::node_hash_set<Task, Task::Hash, Task::Equals> tasks_ ABSL_GUARDED_BY(mutex_);
+  std::vector<TaskRef> queue_ ABSL_GUARDED_BY(mutex_);
 
-  // Indicates whether the event at the top of queue is due. This flag MUST be updated every time
-  // `queue_` is modified, as it's used for conditional locking to wake up a worker to run the
-  // event. The value of this flag can be calculated by calling `is_event_due()`.
+  // Indicates whether the task at the top of the queue is due. This flag MUST be updated every time
+  // `queue_` is modified, as it's used for conditional locking to wake up a worker to run the task.
+  // The value of this flag can be calculated by calling `is_task_due()`.
   //
-  // NOTE: we need to cache the value of `is_event_due()` in this flag for use in conditional
-  // locking because locking conditions can only access state guarded by the mutex and must
-  // otherwise be pure, so fetching the clock is not allowed. `is_event_due()` needs to fetch the
-  // clock to determine whether and event is due, so it cannot be invoked directly in locking
-  // conditions.
-  bool event_due_ ABSL_GUARDED_BY(mutex_) = false;
+  // NOTE: we need to cache the value of `is_task_due()` in this flag for use in conditional locking
+  // because locking conditions can only access state guarded by the mutex and must otherwise be
+  // pure, so fetching the clock is not allowed. `is_task_due()` needs to fetch the clock to
+  // determine whether and task is due, so it cannot be invoked directly in locking conditions.
+  bool task_due_ ABSL_GUARDED_BY(mutex_) = false;
 
   State state_ ABSL_GUARDED_BY(mutex_) = State::IDLE;
   std::vector<std::unique_ptr<Worker>> workers_ ABSL_GUARDED_BY(mutex_);
