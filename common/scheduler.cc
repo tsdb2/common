@@ -59,13 +59,14 @@ void Scheduler::Stop() {
 }
 
 absl::Status Scheduler::WaitUntilAllWorkersAsleep() const {
-  absl::MutexLock lock{&mutex_};
-  mutex_.Await(SimpleCondition([this,
-                                now = clock_->TimeNow()]() ABSL_SHARED_LOCKS_REQUIRED(mutex_) {
-    return state_ != State::STARTED ||
-           (absl::c_all_of(workers_, [](auto const &worker) { return worker->is_sleeping(); }) &&
-            (queue_.empty() || queue_.front()->due_time() > now));
-  }));
+  absl::MutexLock lock{
+      &mutex_,
+      SimpleCondition([this, now = clock_->TimeNow()]() ABSL_SHARED_LOCKS_REQUIRED(mutex_) {
+        return state_ != State::STARTED ||
+               (absl::c_all_of(workers_,
+                               [](auto const &worker) { return worker->is_sleeping(); }) &&
+                (queue_.empty() || queue_.front()->due_time() > now));
+      })};
   if (state_ > State::STARTED) {
     return absl::CancelledError("");
   } else {

@@ -97,6 +97,7 @@ class SchedulerEventTest : public SchedulerTest {
  protected:
   explicit SchedulerEventTest() : SchedulerTest(/*start_now=*/true) {
     clock_.AdvanceTime(absl::Seconds(12));
+    WaitUntilAllWorkersAsleep();
   }
 
   Scheduler::Handle ScheduleAt(absl::Duration const due_time, Scheduler::Callback callback) {
@@ -137,6 +138,29 @@ TEST_P(SchedulerEventTest, AdvanceTime) {
   clock_.AdvanceTime(absl::Seconds(22));
   WaitUntilAllWorkersAsleep();
   EXPECT_TRUE(done.HasBeenNotified());
+}
+
+TEST_P(SchedulerEventTest, AdvanceFurther) {
+  absl::Notification done;
+  ScheduleAt(absl::Seconds(34), [&] { done.Notify(); });
+  clock_.AdvanceTime(absl::Seconds(56));
+  WaitUntilAllWorkersAsleep();
+  EXPECT_TRUE(done.HasBeenNotified());
+}
+
+TEST_P(SchedulerEventTest, Preempt) {
+  bool run1 = false;
+  bool run2 = false;
+  ScheduleAt(absl::Seconds(56), [&] { run1 = true; });
+  ScheduleAt(absl::Seconds(34), [&] { run2 = true; });
+  clock_.AdvanceTime(absl::Seconds(25));
+  WaitUntilAllWorkersAsleep();
+  EXPECT_FALSE(run1);
+  EXPECT_TRUE(run2);
+  clock_.AdvanceTime(absl::Seconds(25));
+  WaitUntilAllWorkersAsleep();
+  EXPECT_TRUE(run1);
+  EXPECT_TRUE(run2);
 }
 
 // TODO

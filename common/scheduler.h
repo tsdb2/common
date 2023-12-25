@@ -362,16 +362,6 @@ class Scheduler {
   Scheduler(Scheduler &&) = delete;
   Scheduler &operator=(Scheduler &&) = delete;
 
-  // Checks the state of the queue and determines whether a task is due. The returned value is
-  // used to update the `task_due_` flag below.
-  bool is_task_due() const ABSL_SHARED_LOCKS_REQUIRED(mutex_) {
-    if (queue_.empty()) {
-      return false;
-    }
-    auto &ref = queue_.front();
-    return !ref->cancelled() && ref->due_time() <= clock_->TimeNow();
-  }
-
   Handle ScheduleInternal(Callback callback, absl::Time due_time,
                           std::optional<absl::Duration> period) ABSL_LOCKS_EXCLUDED(mutex_);
 
