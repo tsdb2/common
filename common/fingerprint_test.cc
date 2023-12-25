@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -10,6 +11,7 @@
 #include <vector>
 
 #include "absl/types/span.h"
+#include "common/flat_set.h"
 #include "gtest/gtest.h"
 
 namespace foo {
@@ -34,6 +36,7 @@ class TestClass {
 namespace {
 
 using ::tsdb2::common::FingerprintOf;
+using ::tsdb2::common::flat_set;
 
 auto constexpr kInt8Fingerprint = FingerprintOf(int8_t{42});
 auto constexpr kInt16Fingerprint = FingerprintOf(int16_t{42});
@@ -175,6 +178,19 @@ TEST(FingerprintTest, Arrays) {
   EXPECT_NE(FingerprintOf(a2), FingerprintOf(a3));
   EXPECT_EQ(FingerprintOf(a1), FingerprintOf(absl::Span<const std::string>(a4)));
 }
+
+TEST(FingerprintTest, Sets) {
+  std::set<std::string> s1{"lorem", "ipsum", "dolor", "amet"};
+  std::set<std::string> s2{"foo", "bar", "baz", "qux"};
+  std::set<std::string> s3{"foo", "bar", "baz"};
+  flat_set<std::string> s4{"lorem", "ipsum", "dolor", "amet"};
+  EXPECT_EQ(FingerprintOf(s1), FingerprintOf(s1));
+  EXPECT_NE(FingerprintOf(s1), FingerprintOf(s2));
+  EXPECT_NE(FingerprintOf(s2), FingerprintOf(s3));
+  EXPECT_EQ(FingerprintOf(s1), FingerprintOf(s4));
+}
+
+// TODO: maps.
 
 TEST(FingerprintTest, CustomObject) {
   ::foo::TestClass value{"foo", 42, true};

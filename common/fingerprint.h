@@ -44,7 +44,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <map>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -54,6 +56,7 @@
 #include <vector>
 
 #include "absl/types/span.h"
+#include "common/flat_set.h"
 
 template <typename State, typename Integer>
 constexpr State Tsdb2FingerprintValue(State state, Integer value,
@@ -100,6 +103,15 @@ State Tsdb2FingerprintValue(State state, std::string_view const value);
 
 template <typename State>
 constexpr State Tsdb2FingerprintValue(State state, char const value[]);
+
+template <typename State, typename Inner>
+State Tsdb2FingerprintValue(State state, std::set<Inner> const& value);
+
+template <typename State, typename Key, typename Value>
+State Tsdb2FingerprintValue(State state, std::map<Key, Value> const& value);
+
+template <typename State, typename Inner>
+State Tsdb2FingerprintValue(State state, ::tsdb2::common::flat_set<Inner> const& value);
 
 template <typename State, typename Integer>
 constexpr State Tsdb2FingerprintValue(State state, Integer const value,
@@ -218,6 +230,34 @@ constexpr State Tsdb2FingerprintValue(State state, char const value[]) {
   } else {
     return Tsdb2FingerprintValue(std::move(state), "");
   }
+}
+
+template <typename State, typename Inner>
+State Tsdb2FingerprintValue(State state, std::set<Inner> const& value) {
+  state.Add(value.size());
+  for (auto const& element : value) {
+    state = Tsdb2FingerprintValue(std::move(state), element);
+  }
+  return state;
+}
+
+template <typename State, typename Key, typename Value>
+State Tsdb2FingerprintValue(State state, std::map<Key, Value> const& value) {
+  state.Add(value.size());
+  for (auto const& [key, value] : value) {
+    state = Tsdb2FingerprintValue(std::move(state), key);
+    state = Tsdb2FingerprintValue(std::move(state), value);
+  }
+  return state;
+}
+
+template <typename State, typename Inner>
+State Tsdb2FingerprintValue(State state, ::tsdb2::common::flat_set<Inner> const& value) {
+  state.Add(value.size());
+  for (auto const& element : value) {
+    state = Tsdb2FingerprintValue(std::move(state), element);
+  }
+  return state;
 }
 
 namespace tsdb2 {
