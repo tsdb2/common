@@ -133,8 +133,17 @@ absl::StatusOr<Scheduler::Event *> Scheduler::FetchEvent(Worker *const worker,
   absl::MutexLock lock{&mutex_};
   Worker::SleepScope worker_sleep_scope{worker};
   if (last_event) {
-    // TODO: handle periodic events.
-    events_.erase(last_event->handle());
+    if (!last_event->cancelled() && last_event->is_periodic()) {
+      auto const period = last_event->period();
+      auto const due_time = last_event->due_time();
+      last_event->set_due_time(due_time +
+                               std::max(absl::Ceil(clock_->TimeNow() - due_time, period), period));
+      queue_.emplace_back(last_event);
+      std::push_heap(queue_.begin(), queue_.end(), CompareEvents());
+      event_due_ = is_event_due();
+    } else {
+      events_.erase(last_event->handle());
+    }
   }
   auto const queue_not_empty_condition =
       SimpleCondition([this]() ABSL_SHARED_LOCKS_REQUIRED(mutex_) {

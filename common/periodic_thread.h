@@ -54,15 +54,26 @@ class PeriodicThread {
                                    absl::ZeroDuration(), options.period);
   }
 
+  // Returns the state of the background thread / underlying `Scheduler`.
   State state() const { return scheduler_.state(); }
 
+  // Starts the background thread. It works by calling `Start` on the underlying `Scheduler`.
   void Start() { scheduler_.Start(); }
 
+  // Stops and joins the background thread. It works by calling `Stop` on the underlying
+  // `Scheduler`. You don't need to call this explicitly, the destructor will automatically call it
+  // for you if you haven't.
   void Stop() { scheduler_.Stop(); }
 
+  // Waits until the background thread is asleep. It works by calling `WaitUntilAllWorkersAsleep` on
+  // the underlying `Scheduler`. Much like `Scheduler::WaitUntilAllWorkersAsleep`, this method only
+  // makes sense in tests with a `MockClock`, otherwise there's no guarantee that the thread hasn't
+  // woken up again by the time this method returns.
   absl::Status WaitUntilAsleep() const { return scheduler_.WaitUntilAllWorkersAsleep(); }
 
  protected:
+  // Called in the context of the background thread once every run period. Implementors run their
+  // periodic code here.
   virtual void Run() = 0;
 
  private:

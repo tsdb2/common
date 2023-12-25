@@ -214,6 +214,9 @@ class Scheduler {
     bool cancelled() const { return cancelled_; }
     void set_cancelled(bool const value) { cancelled_ = value; }
 
+    bool is_periodic() const { return period_.has_value(); }
+    absl::Duration period() const { return period_.value(); }
+
     void Run() { callback_(); }
 
    private:
@@ -230,7 +233,7 @@ class Scheduler {
 
     Callback callback_;
     absl::Time due_time_;
-    std::optional<absl::Duration> period_;
+    std::optional<absl::Duration> const period_;
 
     // Backlink to the `EventRef` of this Event. The `EventRef` move constructor and assignment
     // operator take care of keeping this up to date.
