@@ -226,7 +226,7 @@ class raw_flat_set {
 
   template <typename Key = key_type>
   size_type erase(key_arg_t<Key>&& key) {
-    return rep_.erase(std::lower_bound(rep_.begin(), rep_.end(), key, comp_));
+    return rep_.erase(find(key));
   }
 
   void swap(raw_flat_set& other) noexcept {
@@ -244,7 +244,7 @@ class raw_flat_set {
 
   template <typename Key = key_type>
   node_type extract(key_arg_t<Key>&& key) {
-    return extract(std::lower_bound(rep_.begin(), rep_.end(), key, comp_));
+    return extract(find(key));
   }
 
   // TODO: merge methods.
@@ -253,24 +253,32 @@ class raw_flat_set {
 
   template <typename Key = key_type>
   size_type count(key_arg_t<Key> const& key) const {
-    auto const it = std::lower_bound(rep_.begin(), rep_.end(), key, comp_);
-    return it != rep_.end();
+    return std::binary_search(rep_.begin(), rep_.end(), key, comp_);
   }
 
   template <typename Key = key_type>
   iterator find(key_arg_t<Key> const& key) {
-    return std::lower_bound(rep_.begin(), rep_.end(), key, comp_);
+    auto const it = std::lower_bound(rep_.begin(), rep_.end(), key, comp_);
+    if (it == rep_.end() || comp_(key, *it)) {
+      return rep_.end();
+    } else {
+      return it;
+    }
   }
 
   template <typename Key = key_type>
   const_iterator find(key_arg_t<Key> const& key) const {
-    return std::lower_bound(rep_.begin(), rep_.end(), key, comp_);
+    auto const it = std::lower_bound(rep_.begin(), rep_.end(), key, comp_);
+    if (it == rep_.end() || comp_(key, *it)) {
+      return rep_.end();
+    } else {
+      return it;
+    }
   }
 
   template <typename Key = key_type>
   bool contains(key_arg_t<Key> const& key) const {
-    auto const it = std::lower_bound(rep_.begin(), rep_.end(), key, comp_);
-    return it != rep_.end();
+    return std::binary_search(rep_.begin(), rep_.end(), key, comp_);
   }
 
   template <typename Key = key_type>
