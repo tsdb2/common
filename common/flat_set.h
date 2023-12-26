@@ -272,12 +272,17 @@ class flat_set {
 
   template <typename KeyArg = key_type>
   node_type extract(key_arg_t<KeyArg> const& key) {
-    return extract(find(key));
+    auto it = find(key);
+    if (it != end()) {
+      return extract(it);
+    } else {
+      return {};
+    }
   }
 
   // TODO: merge methods.
 
-  [[nodiscard]] Representation&& ExtractRep() && { return rep_; }
+  [[nodiscard]] Representation&& ExtractRep() && { return std::move(rep_); }
 
   template <typename KeyArg = key_type>
   size_type count(key_arg_t<KeyArg> const& key) const {

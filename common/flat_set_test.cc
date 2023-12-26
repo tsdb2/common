@@ -15,6 +15,7 @@
 
 namespace {
 
+using ::testing::ElementsAre;
 using ::tsdb2::common::FixedT;
 using ::tsdb2::common::FixedV;
 using ::tsdb2::common::flat_set;
@@ -103,18 +104,17 @@ class TestKeysMatcher<flat_set<Key, Compare, Representation>, Inner...>
   std::tuple<Inner...> inner_;
 };
 
-template <typename... Inner>
-TestKeysMatcher<flat_set<TestKey, TestCompare, TestRepresentation>, std::decay_t<Inner>...>
-TestKeysAre(Inner&&... inner) {
-  return TestKeysMatcher<flat_set<TestKey, TestCompare, TestRepresentation>,
-                         std::decay_t<Inner>...>(std::forward<Inner>(inner)...);
+template <typename Representation, typename... Inner>
+TestKeysMatcher<flat_set<TestKey, TestCompare, Representation>, std::decay_t<Inner>...> TestKeysAre(
+    Inner&&... inner) {
+  return TestKeysMatcher<flat_set<TestKey, TestCompare, Representation>, std::decay_t<Inner>...>(
+      std::forward<Inner>(inner)...);
 }
 
-template <typename... Inner>
-TestKeysMatcher<flat_set<TestKey, TransparentTestCompare, TestRepresentation>,
-                std::decay_t<Inner>...>
+template <typename Representation, typename... Inner>
+TestKeysMatcher<flat_set<TestKey, TransparentTestCompare, Representation>, std::decay_t<Inner>...>
 TransparentTestKeysAre(Inner&&... inner) {
-  return TestKeysMatcher<flat_set<TestKey, TransparentTestCompare, TestRepresentation>,
+  return TestKeysMatcher<flat_set<TestKey, TransparentTestCompare, Representation>,
                          std::decay_t<Inner>...>(std::forward<Inner>(inner)...);
 }
 
@@ -192,54 +192,59 @@ TEST(FlatSetTest, DefaultComparator) {
                               typename std::vector<TestKey>::const_reverse_iterator>));
 }
 
-TEST(FlatSetTest, Construct) {
-  flat_set<TestKey, TestCompare, TestRepresentation> fs1{TestCompare(), TestAllocator()};
-  EXPECT_THAT(fs1, TestKeysAre());
-  flat_set<TestKey, TestCompare, TestRepresentation> fs2{TestCompare()};
-  EXPECT_THAT(fs2, TestKeysAre());
-  flat_set<TestKey, TestCompare, TestRepresentation> fs3{TestAllocator()};
-  EXPECT_THAT(fs3, TestKeysAre());
-  flat_set<TestKey, TestCompare, TestRepresentation> fs4{};
-  EXPECT_THAT(fs4, TestKeysAre());
+template <typename Representation>
+class FlatSetWithRepresentationTest : public ::testing::Test {};
+
+TYPED_TEST_SUITE_P(FlatSetWithRepresentationTest);
+
+TYPED_TEST_P(FlatSetWithRepresentationTest, Construct) {
+  flat_set<TestKey, TestCompare, TypeParam> fs1{TestCompare(), TestAllocator()};
+  EXPECT_THAT(fs1, TestKeysAre<TypeParam>());
+  flat_set<TestKey, TestCompare, TypeParam> fs2{TestCompare()};
+  EXPECT_THAT(fs2, TestKeysAre<TypeParam>());
+  flat_set<TestKey, TestCompare, TypeParam> fs3{TestAllocator()};
+  EXPECT_THAT(fs3, TestKeysAre<TypeParam>());
+  flat_set<TestKey, TestCompare, TypeParam> fs4{};
+  EXPECT_THAT(fs4, TestKeysAre<TypeParam>());
 }
 
-TEST(FlatSetTest, ConstructWithIterators) {
+TYPED_TEST_P(FlatSetWithRepresentationTest, ConstructWithIterators) {
   std::vector<TestKey> keys{-2, -3, 4, -1, -2, 1, 5, -3};
 
-  flat_set<TestKey, TestCompare, TestRepresentation> fs1{keys.begin(), keys.end(), TestCompare(),
-                                                         TestAllocator()};
-  EXPECT_THAT(fs1, TestKeysAre(-3, -2, -1, 1, 4, 5));
+  flat_set<TestKey, TestCompare, TypeParam> fs1{keys.begin(), keys.end(), TestCompare(),
+                                                TestAllocator()};
+  EXPECT_THAT(fs1, TestKeysAre<TypeParam>(-3, -2, -1, 1, 4, 5));
 
-  flat_set<TestKey, TestCompare, TestRepresentation> fs2{keys.begin(), keys.end(), TestCompare()};
-  EXPECT_THAT(fs2, TestKeysAre(-3, -2, -1, 1, 4, 5));
+  flat_set<TestKey, TestCompare, TypeParam> fs2{keys.begin(), keys.end(), TestCompare()};
+  EXPECT_THAT(fs2, TestKeysAre<TypeParam>(-3, -2, -1, 1, 4, 5));
 
-  flat_set<TestKey, TestCompare, TestRepresentation> fs3{keys.begin(), keys.end(), TestAllocator()};
-  EXPECT_THAT(fs3, TestKeysAre(-3, -2, -1, 1, 4, 5));
+  flat_set<TestKey, TestCompare, TypeParam> fs3{keys.begin(), keys.end(), TestAllocator()};
+  EXPECT_THAT(fs3, TestKeysAre<TypeParam>(-3, -2, -1, 1, 4, 5));
 
-  flat_set<TestKey, TestCompare, TestRepresentation> fs4{keys.begin(), keys.end()};
-  EXPECT_THAT(fs4, TestKeysAre(-3, -2, -1, 1, 4, 5));
+  flat_set<TestKey, TestCompare, TypeParam> fs4{keys.begin(), keys.end()};
+  EXPECT_THAT(fs4, TestKeysAre<TypeParam>(-3, -2, -1, 1, 4, 5));
 }
 
-TEST(FlatSetTest, ConstructWithInitializerList) {
-  flat_set<TestKey, TestCompare, TestRepresentation> fs{-2, -3, 4, -1, -2, 1, 5, -3};
-  EXPECT_THAT(fs, TestKeysAre(-3, -2, -1, 1, 4, 5));
+TYPED_TEST_P(FlatSetWithRepresentationTest, ConstructWithInitializerList) {
+  flat_set<TestKey, TestCompare, TypeParam> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  EXPECT_THAT(fs, TestKeysAre<TypeParam>(-3, -2, -1, 1, 4, 5));
 }
 
-TEST(FlatSetTest, AssignInitializerList) {
-  flat_set<TestKey, TestCompare, TestRepresentation> fs;
+TYPED_TEST_P(FlatSetWithRepresentationTest, AssignInitializerList) {
+  flat_set<TestKey, TestCompare, TypeParam> fs;
   fs = {-2, -3, 4, -1, -2, 1, 5, -3};
-  EXPECT_THAT(fs, TestKeysAre(-3, -2, -1, 1, 4, 5));
+  EXPECT_THAT(fs, TestKeysAre<TypeParam>(-3, -2, -1, 1, 4, 5));
 }
 
-TEST(FlatSetTest, Deduplication) {
-  flat_set<TestKey, TestCompare, TestRepresentation> fs1{-2, -3, 4, -1, -2, 1, 5, -3};
-  flat_set<TestKey, TestCompare, TestRepresentation> fs2{-3, -2, -1, 1, 4, 5};
+TYPED_TEST_P(FlatSetWithRepresentationTest, Deduplication) {
+  flat_set<TestKey, TestCompare, TypeParam> fs1{-2, -3, 4, -1, -2, 1, 5, -3};
+  flat_set<TestKey, TestCompare, TypeParam> fs2{-3, -2, -1, 1, 4, 5};
   EXPECT_EQ(fs1, fs2);
 }
 
-TEST(FlatSetTest, CompareEqual) {
-  flat_set<TestKey, TestCompare, TestRepresentation> fs1{-2, -3, 4, -1, -2, 1, 5, -3};
-  flat_set<TestKey, TestCompare, TestRepresentation> fs2{-2, -3, 4, -1, -2, 1, 5, -3};
+TYPED_TEST_P(FlatSetWithRepresentationTest, CompareEqual) {
+  flat_set<TestKey, TestCompare, TypeParam> fs1{-2, -3, 4, -1, -2, 1, 5, -3};
+  flat_set<TestKey, TestCompare, TypeParam> fs2{-2, -3, 4, -1, -2, 1, 5, -3};
   EXPECT_TRUE(fs1 == fs2);
   EXPECT_FALSE(fs1 != fs2);
   EXPECT_FALSE(fs1 < fs2);
@@ -248,9 +253,9 @@ TEST(FlatSetTest, CompareEqual) {
   EXPECT_TRUE(fs1 >= fs2);
 }
 
-TEST(FlatSetTest, CompareLHSLessThanRHS) {
-  flat_set<TestKey, TestCompare, TestRepresentation> fs1{-2, -3, 4, -1, -2, 1, 5, -3};
-  flat_set<TestKey, TestCompare, TestRepresentation> fs2{-3, 4, -1, 1, 5, -3};
+TYPED_TEST_P(FlatSetWithRepresentationTest, CompareLHSLessThanRHS) {
+  flat_set<TestKey, TestCompare, TypeParam> fs1{-2, -3, 4, -1, -2, 1, 5, -3};
+  flat_set<TestKey, TestCompare, TypeParam> fs2{-3, 4, -1, 1, 5, -3};
   EXPECT_FALSE(fs1 == fs2);
   EXPECT_TRUE(fs1 != fs2);
   EXPECT_TRUE(fs1 < fs2);
@@ -259,9 +264,9 @@ TEST(FlatSetTest, CompareLHSLessThanRHS) {
   EXPECT_FALSE(fs1 >= fs2);
 }
 
-TEST(FlatSetTest, CompareLHSGreaterThanRHS) {
-  flat_set<TestKey, TestCompare, TestRepresentation> fs1{-3, 4, -1, 1, 5, -3};
-  flat_set<TestKey, TestCompare, TestRepresentation> fs2{-2, -3, 4, -1, -2, 1, 5, -3};
+TYPED_TEST_P(FlatSetWithRepresentationTest, CompareLHSGreaterThanRHS) {
+  flat_set<TestKey, TestCompare, TypeParam> fs1{-3, 4, -1, 1, 5, -3};
+  flat_set<TestKey, TestCompare, TypeParam> fs2{-2, -3, 4, -1, -2, 1, 5, -3};
   EXPECT_FALSE(fs1 == fs2);
   EXPECT_TRUE(fs1 != fs2);
   EXPECT_FALSE(fs1 < fs2);
@@ -270,123 +275,123 @@ TEST(FlatSetTest, CompareLHSGreaterThanRHS) {
   EXPECT_TRUE(fs1 >= fs2);
 }
 
-TEST(FlatSetTest, CopyConstruct) {
-  flat_set<TestKey, TestCompare, TestRepresentation> fs1{-2, -3, 4, -1, -2, 1, 5, -3};
-  flat_set<TestKey, TestCompare, TestRepresentation> fs2{fs1};
-  EXPECT_THAT(fs2, TestKeysAre(-3, -2, -1, 1, 4, 5));
+TYPED_TEST_P(FlatSetWithRepresentationTest, CopyConstruct) {
+  flat_set<TestKey, TestCompare, TypeParam> fs1{-2, -3, 4, -1, -2, 1, 5, -3};
+  flat_set<TestKey, TestCompare, TypeParam> fs2{fs1};
+  EXPECT_THAT(fs2, TestKeysAre<TypeParam>(-3, -2, -1, 1, 4, 5));
 }
 
-TEST(FlatSetTest, Copy) {
-  flat_set<TestKey, TestCompare, TestRepresentation> fs1{-2, -3, 4, -1, -2, 1, 5, -3};
-  flat_set<TestKey, TestCompare, TestRepresentation> fs2;
+TYPED_TEST_P(FlatSetWithRepresentationTest, Copy) {
+  flat_set<TestKey, TestCompare, TypeParam> fs1{-2, -3, 4, -1, -2, 1, 5, -3};
+  flat_set<TestKey, TestCompare, TypeParam> fs2;
   fs2 = fs1;
-  EXPECT_THAT(fs2, TestKeysAre(-3, -2, -1, 1, 4, 5));
+  EXPECT_THAT(fs2, TestKeysAre<TypeParam>(-3, -2, -1, 1, 4, 5));
 }
 
-TEST(FlatSetTest, MoveConstruct) {
-  flat_set<TestKey, TestCompare, TestRepresentation> fs1{-2, -3, 4, -1, -2, 1, 5, -3};
-  flat_set<TestKey, TestCompare, TestRepresentation> fs2{std::move(fs1)};
-  EXPECT_THAT(fs1, TestKeysAre());
-  EXPECT_THAT(fs2, TestKeysAre(-3, -2, -1, 1, 4, 5));
+TYPED_TEST_P(FlatSetWithRepresentationTest, MoveConstruct) {
+  flat_set<TestKey, TestCompare, TypeParam> fs1{-2, -3, 4, -1, -2, 1, 5, -3};
+  flat_set<TestKey, TestCompare, TypeParam> fs2{std::move(fs1)};
+  EXPECT_THAT(fs1, TestKeysAre<TypeParam>());
+  EXPECT_THAT(fs2, TestKeysAre<TypeParam>(-3, -2, -1, 1, 4, 5));
 }
 
-TEST(FlatSetTest, Move) {
-  flat_set<TestKey, TestCompare, TestRepresentation> fs1{-2, -3, 4, -1, -2, 1, 5, -3};
-  flat_set<TestKey, TestCompare, TestRepresentation> fs2;
+TYPED_TEST_P(FlatSetWithRepresentationTest, Move) {
+  flat_set<TestKey, TestCompare, TypeParam> fs1{-2, -3, 4, -1, -2, 1, 5, -3};
+  flat_set<TestKey, TestCompare, TypeParam> fs2;
   fs2 = std::move(fs1);
-  EXPECT_THAT(fs1, TestKeysAre());
-  EXPECT_THAT(fs2, TestKeysAre(-3, -2, -1, 1, 4, 5));
+  EXPECT_THAT(fs1, TestKeysAre<TypeParam>());
+  EXPECT_THAT(fs2, TestKeysAre<TypeParam>(-3, -2, -1, 1, 4, 5));
 }
 
-TEST(FlatSetTest, Empty) {
-  flat_set<TestKey, TestCompare, TestRepresentation> fs;
-  ASSERT_THAT(fs, TestKeysAre());
+TYPED_TEST_P(FlatSetWithRepresentationTest, Empty) {
+  flat_set<TestKey, TestCompare, TypeParam> fs;
+  ASSERT_THAT(fs, TestKeysAre<TypeParam>());
   EXPECT_TRUE(fs.empty());
   EXPECT_EQ(fs.size(), 0);
 }
 
-TEST(FlatSetTest, NotEmpty) {
-  flat_set<TestKey, TestCompare, TestRepresentation> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+TYPED_TEST_P(FlatSetWithRepresentationTest, NotEmpty) {
+  flat_set<TestKey, TestCompare, TypeParam> fs{-2, -3, 4, -1, -2, 1, 5, -3};
   EXPECT_FALSE(fs.empty());
   EXPECT_EQ(fs.size(), 6);
 }
 
-TEST(FlatSetTest, Clear) {
-  flat_set<TestKey, TestCompare, TestRepresentation> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+TYPED_TEST_P(FlatSetWithRepresentationTest, Clear) {
+  flat_set<TestKey, TestCompare, TypeParam> fs{-2, -3, 4, -1, -2, 1, 5, -3};
   fs.clear();
-  EXPECT_THAT(fs, TestKeysAre());
+  EXPECT_THAT(fs, TestKeysAre<TypeParam>());
   EXPECT_TRUE(fs.empty());
   EXPECT_EQ(fs.size(), 0);
 }
 
-TEST(FlatSetTest, Insert) {
-  flat_set<TestKey, TestCompare, TestRepresentation> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+TYPED_TEST_P(FlatSetWithRepresentationTest, Insert) {
+  flat_set<TestKey, TestCompare, TypeParam> fs{-2, -3, 4, -1, -2, 1, 5, -3};
   TestKey const value{6};
   auto const [it, inserted] = fs.insert(value);
   EXPECT_EQ(value, *it);
   EXPECT_TRUE(inserted);
 }
 
-TEST(FlatSetTest, MoveInsert) {
-  flat_set<TestKey, TestCompare, TestRepresentation> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+TYPED_TEST_P(FlatSetWithRepresentationTest, MoveInsert) {
+  flat_set<TestKey, TestCompare, TypeParam> fs{-2, -3, 4, -1, -2, 1, 5, -3};
   TestKey value{6};
   auto const [it, inserted] = fs.insert(std::move(value));
   EXPECT_EQ(it->field, 6);
   EXPECT_TRUE(inserted);
 }
 
-TEST(FlatSetTest, InsertCollision) {
-  flat_set<TestKey, TestCompare, TestRepresentation> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+TYPED_TEST_P(FlatSetWithRepresentationTest, InsertCollision) {
+  flat_set<TestKey, TestCompare, TypeParam> fs{-2, -3, 4, -1, -2, 1, 5, -3};
   TestKey const value{5};
   auto const [it, inserted] = fs.insert(value);
   EXPECT_EQ(value, *it);
   EXPECT_FALSE(inserted);
 }
 
-TEST(FlatSetTest, MoveInsertCollision) {
-  flat_set<TestKey, TestCompare, TestRepresentation> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+TYPED_TEST_P(FlatSetWithRepresentationTest, MoveInsertCollision) {
+  flat_set<TestKey, TestCompare, TypeParam> fs{-2, -3, 4, -1, -2, 1, 5, -3};
   TestKey value{5};
   auto const [it, inserted] = fs.insert(std::move(value));
   EXPECT_EQ(it->field, 5);
   EXPECT_FALSE(inserted);
 }
 
-TEST(FlatSetTest, InsertFromIterators) {
-  flat_set<TestKey, TestCompare, TestRepresentation> fs{-2, -3, 4, -1};
+TYPED_TEST_P(FlatSetWithRepresentationTest, InsertFromIterators) {
+  flat_set<TestKey, TestCompare, TypeParam> fs{-2, -3, 4, -1};
   std::vector<TestKey> v{-2, 1, 5, -3};
   fs.insert(v.begin(), v.end());
-  EXPECT_THAT(fs, TestKeysAre(-3, -2, -1, 1, 4, 5));
+  EXPECT_THAT(fs, TestKeysAre<TypeParam>(-3, -2, -1, 1, 4, 5));
 }
 
-TEST(FlatSetTest, InsertFromInitializerList) {
-  flat_set<TestKey, TestCompare, TestRepresentation> fs{-2, -3, 4, -1};
+TYPED_TEST_P(FlatSetWithRepresentationTest, InsertFromInitializerList) {
+  flat_set<TestKey, TestCompare, TypeParam> fs{-2, -3, 4, -1};
   fs.insert({-2, 1, 5, -3});
-  EXPECT_THAT(fs, TestKeysAre(-3, -2, -1, 1, 4, 5));
+  EXPECT_THAT(fs, TestKeysAre<TypeParam>(-3, -2, -1, 1, 4, 5));
 }
 
-TEST(FlatSetTest, InsertNode) {
-  flat_set<TestKey, TestCompare, TestRepresentation> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+TYPED_TEST_P(FlatSetWithRepresentationTest, InsertNode) {
+  flat_set<TestKey, TestCompare, TypeParam> fs{-2, -3, 4, -1, -2, 1, 5, -3};
   auto node1 = fs.extract(TestKey{1});
   auto const [it, inserted, node2] = fs.insert(std::move(node1));
   EXPECT_EQ(it->field, 1);
   EXPECT_TRUE(inserted);
   EXPECT_TRUE(node2.empty());
-  EXPECT_THAT(fs, TestKeysAre(-3, -2, -1, 1, 4, 5));
+  EXPECT_THAT(fs, TestKeysAre<TypeParam>(-3, -2, -1, 1, 4, 5));
 }
 
-TEST(FlatSetTest, InsertNodeCollision) {
-  flat_set<TestKey, TestCompare, TestRepresentation> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+TYPED_TEST_P(FlatSetWithRepresentationTest, InsertNodeCollision) {
+  flat_set<TestKey, TestCompare, TypeParam> fs{-2, -3, 4, -1, -2, 1, 5, -3};
   auto node1 = fs.extract(TestKey{1});
   fs.insert(1);
   auto const [it, inserted, node2] = fs.insert(std::move(node1));
   EXPECT_EQ(it->field, 1);
   EXPECT_FALSE(inserted);
   EXPECT_FALSE(node2.empty());
-  EXPECT_THAT(fs, TestKeysAre(-3, -2, -1, 1, 4, 5));
+  EXPECT_THAT(fs, TestKeysAre<TypeParam>(-3, -2, -1, 1, 4, 5));
 }
 
-TEST(FlatSetTest, InsertEmptyNode) {
-  using flat_set = flat_set<TestKey, TestCompare, TestRepresentation>;
+TYPED_TEST_P(FlatSetWithRepresentationTest, InsertEmptyNode) {
+  using flat_set = flat_set<TestKey, TestCompare, TypeParam>;
   flat_set fs{-2, -3, 4, -1, -2, 1, 5, -3};
   typename flat_set::node_type node1;
   EXPECT_TRUE(node1.empty());
@@ -395,71 +400,170 @@ TEST(FlatSetTest, InsertEmptyNode) {
   EXPECT_EQ(it, fs.end());
   EXPECT_FALSE(inserted);
   EXPECT_TRUE(node2.empty());
-  EXPECT_THAT(fs, TestKeysAre(-3, -2, -1, 1, 4, 5));
+  EXPECT_THAT(fs, TestKeysAre<TypeParam>(-3, -2, -1, 1, 4, 5));
 }
 
-TEST(FlatSetTest, Emplace) {
-  flat_set<TestKey, TestCompare, TestRepresentation> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+TYPED_TEST_P(FlatSetWithRepresentationTest, Emplace) {
+  flat_set<TestKey, TestCompare, TypeParam> fs{-2, -3, 4, -1, -2, 1, 5, -3};
   auto const [it, inserted] = fs.emplace(6);
   EXPECT_EQ(it->field, 6);
   EXPECT_TRUE(inserted);
 }
 
-TEST(FlatSetTest, EmplaceCollision) {
-  flat_set<TestKey, TestCompare, TestRepresentation> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+TYPED_TEST_P(FlatSetWithRepresentationTest, EmplaceCollision) {
+  flat_set<TestKey, TestCompare, TypeParam> fs{-2, -3, 4, -1, -2, 1, 5, -3};
   auto const [it, inserted] = fs.emplace(4);
   EXPECT_EQ(it->field, 4);
   EXPECT_FALSE(inserted);
 }
 
-TEST(FlatSetTest, EraseIterator) {
-  flat_set<TestKey, TestCompare, TestRepresentation> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+TYPED_TEST_P(FlatSetWithRepresentationTest, EraseIterator) {
+  flat_set<TestKey, TestCompare, TypeParam> fs{-2, -3, 4, -1, -2, 1, 5, -3};
   auto const it = fs.erase(fs.begin() + 2);
   EXPECT_EQ(it->field, 1);
-  EXPECT_THAT(fs, TestKeysAre(-3, -2, 1, 4, 5));
+  EXPECT_THAT(fs, TestKeysAre<TypeParam>(-3, -2, 1, 4, 5));
 }
 
-TEST(FlatSetTest, EraseRange) {
-  flat_set<TestKey, TestCompare, TestRepresentation> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+TYPED_TEST_P(FlatSetWithRepresentationTest, EraseRange) {
+  flat_set<TestKey, TestCompare, TypeParam> fs{-2, -3, 4, -1, -2, 1, 5, -3};
   auto const it = fs.erase(fs.begin() + 1, fs.begin() + 3);
   EXPECT_EQ(it->field, 1);
-  EXPECT_THAT(fs, TestKeysAre(-3, 1, 4, 5));
+  EXPECT_THAT(fs, TestKeysAre<TypeParam>(-3, 1, 4, 5));
 }
 
-TEST(FlatSetTest, EraseKey) {
-  flat_set<TestKey, TestCompare, TestRepresentation> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+TYPED_TEST_P(FlatSetWithRepresentationTest, EraseKey) {
+  flat_set<TestKey, TestCompare, TypeParam> fs{-2, -3, 4, -1, -2, 1, 5, -3};
   EXPECT_EQ(fs.erase(TestKey(1)), 1);
-  EXPECT_THAT(fs, TestKeysAre(-3, -2, -1, 4, 5));
+  EXPECT_THAT(fs, TestKeysAre<TypeParam>(-3, -2, -1, 4, 5));
 }
 
-TEST(FlatSetTest, EraseNotFound) {
-  flat_set<TestKey, TestCompare, TestRepresentation> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+TYPED_TEST_P(FlatSetWithRepresentationTest, EraseNotFound) {
+  flat_set<TestKey, TestCompare, TypeParam> fs{-2, -3, 4, -1, -2, 1, 5, -3};
   EXPECT_EQ(fs.erase(TestKey(7)), 0);
-  EXPECT_THAT(fs, TestKeysAre(-3, -2, -1, 1, 4, 5));
+  EXPECT_THAT(fs, TestKeysAre<TypeParam>(-3, -2, -1, 1, 4, 5));
 }
 
-TEST(FlatSetTest, EraseKeyTransparent) {
-  flat_set<TestKey, TransparentTestCompare, TestRepresentation> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+TYPED_TEST_P(FlatSetWithRepresentationTest, EraseKeyTransparent) {
+  flat_set<TestKey, TransparentTestCompare, TypeParam> fs{-2, -3, 4, -1, -2, 1, 5, -3};
   EXPECT_EQ(fs.erase(1), 1);
-  EXPECT_THAT(fs, TransparentTestKeysAre(-3, -2, -1, 4, 5));
+  EXPECT_THAT(fs, TransparentTestKeysAre<TypeParam>(-3, -2, -1, 4, 5));
 }
 
-TEST(FlatSetTest, Swap) {
-  flat_set<TestKey, TestCompare, TestRepresentation> fs1{-2, -3, 4, -1, -2, 1, 5, -3};
-  flat_set<TestKey, TestCompare, TestRepresentation> fs2{2, 3, -4, 1, 2, -1, -5, 3};
+TYPED_TEST_P(FlatSetWithRepresentationTest, Swap) {
+  flat_set<TestKey, TestCompare, TypeParam> fs1{-2, -3, 4, -1, -2, 1, 5, -3};
+  flat_set<TestKey, TestCompare, TypeParam> fs2{2, 3, -4, 1, 2, -1, -5, 3};
   fs1.swap(fs2);
-  EXPECT_THAT(fs1, TestKeysAre(-5, -4, -1, 1, 2, 3));
-  EXPECT_THAT(fs2, TestKeysAre(-3, -2, -1, 1, 4, 5));
+  EXPECT_THAT(fs1, TestKeysAre<TypeParam>(-5, -4, -1, 1, 2, 3));
+  EXPECT_THAT(fs2, TestKeysAre<TypeParam>(-3, -2, -1, 1, 4, 5));
 }
 
-TEST(FlatSetTest, SwapSpecialization) {
-  flat_set<TestKey, TestCompare, TestRepresentation> fs1{-2, -3, 4, -1, -2, 1, 5, -3};
-  flat_set<TestKey, TestCompare, TestRepresentation> fs2{2, 3, -4, 1, 2, -1, -5, 3};
+TYPED_TEST_P(FlatSetWithRepresentationTest, SwapSpecialization) {
+  flat_set<TestKey, TestCompare, TypeParam> fs1{-2, -3, 4, -1, -2, 1, 5, -3};
+  flat_set<TestKey, TestCompare, TypeParam> fs2{2, 3, -4, 1, 2, -1, -5, 3};
   std::swap(fs1, fs2);
-  EXPECT_THAT(fs1, TestKeysAre(-5, -4, -1, 1, 2, 3));
-  EXPECT_THAT(fs2, TestKeysAre(-3, -2, -1, 1, 4, 5));
+  EXPECT_THAT(fs1, TestKeysAre<TypeParam>(-5, -4, -1, 1, 2, 3));
+  EXPECT_THAT(fs2, TestKeysAre<TypeParam>(-3, -2, -1, 1, 4, 5));
+}
+
+TYPED_TEST_P(FlatSetWithRepresentationTest, ExtractIterator) {
+  flat_set<TestKey, TestCompare, TypeParam> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  auto const node = fs.extract(fs.begin() + 2);
+  EXPECT_FALSE(node.empty());
+  EXPECT_TRUE(node.operator bool());
+  EXPECT_EQ(node.value(), -1);
+  EXPECT_THAT(fs, TestKeysAre<TypeParam>(-3, -2, 1, 4, 5));
+}
+
+TYPED_TEST_P(FlatSetWithRepresentationTest, ExtractKey) {
+  flat_set<TestKey, TestCompare, TypeParam> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  auto const node = fs.extract(TestKey(-1));
+  EXPECT_FALSE(node.empty());
+  EXPECT_TRUE(node.operator bool());
+  EXPECT_EQ(node.value(), -1);
+  EXPECT_THAT(fs, TestKeysAre<TypeParam>(-3, -2, 1, 4, 5));
+}
+
+TYPED_TEST_P(FlatSetWithRepresentationTest, ExtractMissing) {
+  flat_set<TestKey, TestCompare, TypeParam> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  auto const node = fs.extract(TestKey(7));
+  EXPECT_TRUE(node.empty());
+  EXPECT_FALSE(node.operator bool());
+  EXPECT_THAT(fs, TestKeysAre<TypeParam>(-3, -2, -1, 1, 4, 5));
+}
+
+TYPED_TEST_P(FlatSetWithRepresentationTest, ExtractKeyTransparent) {
+  flat_set<TestKey, TransparentTestCompare, TypeParam> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  auto const node = fs.extract(-1);
+  EXPECT_FALSE(node.empty());
+  EXPECT_TRUE(node.operator bool());
+  EXPECT_EQ(node.value(), -1);
+  EXPECT_THAT(fs, TransparentTestKeysAre<TypeParam>(-3, -2, 1, 4, 5));
+}
+
+TYPED_TEST_P(FlatSetWithRepresentationTest, ExtractRep) {
+  flat_set<TestKey, TestCompare, TypeParam> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  auto const rep = std::move(fs).ExtractRep();
+  EXPECT_THAT(rep, ElementsAre(-3, -2, -1, 1, 4, 5));
+}
+
+TYPED_TEST_P(FlatSetWithRepresentationTest, Count) {
+  flat_set<TestKey, TestCompare, TypeParam> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  EXPECT_EQ(fs.count(-2), 1);
+  EXPECT_EQ(fs.count(6), 0);
+}
+
+TYPED_TEST_P(FlatSetWithRepresentationTest, Find) {
+  flat_set<TestKey, TestCompare, TypeParam> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  auto const it = fs.find(TestKey(4));
+  EXPECT_EQ(it->field, 4);
+}
+
+TYPED_TEST_P(FlatSetWithRepresentationTest, FindTransparent) {
+  flat_set<TestKey, TransparentTestCompare, TypeParam> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  auto const it = fs.find(4);
+  EXPECT_EQ(it->field, 4);
+}
+
+TYPED_TEST_P(FlatSetWithRepresentationTest, FindMissing) {
+  flat_set<TestKey, TestCompare, TypeParam> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  auto const it = fs.find(TestKey(7));
+  EXPECT_EQ(it, fs.end());
+}
+
+TYPED_TEST_P(FlatSetWithRepresentationTest, ConstFind) {
+  flat_set<TestKey, TestCompare, TypeParam> const fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  auto const it = fs.find(TestKey(4));
+  EXPECT_EQ(it->field, 4);
+}
+
+TYPED_TEST_P(FlatSetWithRepresentationTest, ConstFindTransparent) {
+  flat_set<TestKey, TransparentTestCompare, TypeParam> const fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  auto const it = fs.find(4);
+  EXPECT_EQ(it->field, 4);
+}
+
+TYPED_TEST_P(FlatSetWithRepresentationTest, ConstFindMissing) {
+  flat_set<TestKey, TestCompare, TypeParam> const fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  auto const it = fs.find(TestKey(7));
+  EXPECT_EQ(it, fs.end());
 }
 
 // TODO
+
+REGISTER_TYPED_TEST_SUITE_P(FlatSetWithRepresentationTest, Construct, ConstructWithIterators,
+                            ConstructWithInitializerList, AssignInitializerList, Deduplication,
+                            CompareEqual, CompareLHSLessThanRHS, CompareLHSGreaterThanRHS,
+                            CopyConstruct, Copy, MoveConstruct, Move, Empty, NotEmpty, Clear,
+                            Insert, MoveInsert, InsertCollision, MoveInsertCollision,
+                            InsertFromIterators, InsertFromInitializerList, InsertNode,
+                            InsertNodeCollision, InsertEmptyNode, Emplace, EmplaceCollision,
+                            EraseIterator, EraseRange, EraseKey, EraseNotFound, EraseKeyTransparent,
+                            Swap, SwapSpecialization, ExtractIterator, ExtractKey, ExtractMissing,
+                            ExtractKeyTransparent, ExtractRep, Count, Find, FindTransparent,
+                            FindMissing, ConstFind, ConstFindTransparent, ConstFindMissing);
+
+using RepresentationTypes = ::testing::Types<std::vector<TestKey>, std::deque<TestKey>>;
+INSTANTIATE_TYPED_TEST_SUITE_P(FlatSetWithRepresentationTest, FlatSetWithRepresentationTest,
+                               RepresentationTypes);
 
 }  // namespace
