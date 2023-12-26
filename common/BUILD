@@ -12,16 +12,11 @@ cc_library(
 )
 
 cc_library(
-    name = "raw_flat_set",
-    hdrs = ["raw_flat_set.h"],
-    visibility = ["//visibility:private"],
-    deps = ["@com_google_absl//absl/base"],
-)
-
-cc_library(
     name = "flat_set",
     hdrs = ["flat_set.h"],
-    deps = [":raw_flat_set"],
+    deps = [
+        "@com_google_absl//absl/base",
+    ],
 )
 
 cc_test(

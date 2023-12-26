@@ -1,5 +1,6 @@
 #include "common/flat_set.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <deque>
 #include <functional>
@@ -36,7 +37,7 @@ struct TestCompare {
   bool operator()(TestKey const& lhs, TestKey const& rhs) const { return lhs.field < rhs.field; }
 };
 
-struct TestTransparentCompare {
+struct TransparentTestCompare {
   using is_transparent = void;
   template <typename RHS>
   bool operator()(TestKey const& lhs, RHS const& rhs) const {
@@ -64,10 +65,6 @@ class TestKeyMatcher : public ::testing::MatcherInterface<TestKey const&> {
     ::testing::MatcherCast<int>(inner_).DescribeTo(os);
   }
 
-  void DescribeNegationTo(std::ostream* const os) const override {
-    ::testing::MatcherCast<int>(inner_).DescribeTo(os);
-  }
-
  private:
   Inner inner_;
 };
@@ -77,9 +74,12 @@ TestKeyMatcher<std::decay_t<Inner>> TestKeyEq(Inner&& inner) {
   return TestKeyMatcher<std::decay_t<Inner>>(std::forward<Inner>(inner));
 }
 
-template <typename... Inner>
-class TestKeysMatcher : public ::testing::MatcherInterface<
-                            flat_set<TestKey, TestCompare, TestRepresentation> const&> {
+template <typename FlatSet, typename... Inner>
+class TestKeysMatcher;
+
+template <typename Key, typename Compare, typename Representation, typename... Inner>
+class TestKeysMatcher<flat_set<Key, Compare, Representation>, Inner...>
+    : public ::testing::MatcherInterface<flat_set<Key, Compare, Representation> const&> {
  public:
   using is_gtest_matcher = void;
 
@@ -88,7 +88,7 @@ class TestKeysMatcher : public ::testing::MatcherInterface<
   explicit TestKeysMatcher(Inner&&... inner) : inner_{std::forward<Inner>(inner)...} {}
   ~TestKeysMatcher() override = default;
 
-  bool MatchAndExplain(flat_set<TestKey, TestCompare, TestRepresentation> const& value,
+  bool MatchAndExplain(flat_set<Key, Compare, Representation> const& value,
                        ::testing::MatchResultListener* const listener) const override {
     auto it = value.begin();
     Tuple values{TestKey(FixedV<Inner>(*it++))...};
@@ -99,17 +99,23 @@ class TestKeysMatcher : public ::testing::MatcherInterface<
     ::testing::MatcherCast<Tuple>(inner_).DescribeTo(os);
   }
 
-  void DescribeNegationTo(std::ostream* const os) const override {
-    ::testing::MatcherCast<Tuple>(inner_).DescribeTo(os);
-  }
-
  private:
   std::tuple<Inner...> inner_;
 };
 
 template <typename... Inner>
-TestKeysMatcher<std::decay_t<Inner>...> TestKeysAre(Inner&&... inner) {
-  return TestKeysMatcher<std::decay_t<Inner>...>(std::forward<Inner>(inner)...);
+TestKeysMatcher<flat_set<TestKey, TestCompare, TestRepresentation>, std::decay_t<Inner>...>
+TestKeysAre(Inner&&... inner) {
+  return TestKeysMatcher<flat_set<TestKey, TestCompare, TestRepresentation>,
+                         std::decay_t<Inner>...>(std::forward<Inner>(inner)...);
+}
+
+template <typename... Inner>
+TestKeysMatcher<flat_set<TestKey, TransparentTestCompare, TestRepresentation>,
+                std::decay_t<Inner>...>
+TransparentTestKeysAre(Inner&&... inner) {
+  return TestKeysMatcher<flat_set<TestKey, TransparentTestCompare, TestRepresentation>,
+                         std::decay_t<Inner>...>(std::forward<Inner>(inner)...);
 }
 
 TEST(FlatSetTest, Traits) {
@@ -390,6 +396,68 @@ TEST(FlatSetTest, InsertEmptyNode) {
   EXPECT_FALSE(inserted);
   EXPECT_TRUE(node2.empty());
   EXPECT_THAT(fs, TestKeysAre(-3, -2, -1, 1, 4, 5));
+}
+
+TEST(FlatSetTest, Emplace) {
+  flat_set<TestKey, TestCompare, TestRepresentation> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  auto const [it, inserted] = fs.emplace(6);
+  EXPECT_EQ(it->field, 6);
+  EXPECT_TRUE(inserted);
+}
+
+TEST(FlatSetTest, EmplaceCollision) {
+  flat_set<TestKey, TestCompare, TestRepresentation> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  auto const [it, inserted] = fs.emplace(4);
+  EXPECT_EQ(it->field, 4);
+  EXPECT_FALSE(inserted);
+}
+
+TEST(FlatSetTest, EraseIterator) {
+  flat_set<TestKey, TestCompare, TestRepresentation> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  auto const it = fs.erase(fs.begin() + 2);
+  EXPECT_EQ(it->field, 1);
+  EXPECT_THAT(fs, TestKeysAre(-3, -2, 1, 4, 5));
+}
+
+TEST(FlatSetTest, EraseRange) {
+  flat_set<TestKey, TestCompare, TestRepresentation> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  auto const it = fs.erase(fs.begin() + 1, fs.begin() + 3);
+  EXPECT_EQ(it->field, 1);
+  EXPECT_THAT(fs, TestKeysAre(-3, 1, 4, 5));
+}
+
+TEST(FlatSetTest, EraseKey) {
+  flat_set<TestKey, TestCompare, TestRepresentation> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  EXPECT_EQ(fs.erase(TestKey(1)), 1);
+  EXPECT_THAT(fs, TestKeysAre(-3, -2, -1, 4, 5));
+}
+
+TEST(FlatSetTest, EraseNotFound) {
+  flat_set<TestKey, TestCompare, TestRepresentation> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  EXPECT_EQ(fs.erase(TestKey(7)), 0);
+  EXPECT_THAT(fs, TestKeysAre(-3, -2, -1, 1, 4, 5));
+}
+
+TEST(FlatSetTest, EraseKeyTransparent) {
+  flat_set<TestKey, TransparentTestCompare, TestRepresentation> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  EXPECT_EQ(fs.erase(1), 1);
+  EXPECT_THAT(fs, TransparentTestKeysAre(-3, -2, -1, 4, 5));
+}
+
+TEST(FlatSetTest, Swap) {
+  flat_set<TestKey, TestCompare, TestRepresentation> fs1{-2, -3, 4, -1, -2, 1, 5, -3};
+  flat_set<TestKey, TestCompare, TestRepresentation> fs2{2, 3, -4, 1, 2, -1, -5, 3};
+  fs1.swap(fs2);
+  EXPECT_THAT(fs1, TestKeysAre(-5, -4, -1, 1, 2, 3));
+  EXPECT_THAT(fs2, TestKeysAre(-3, -2, -1, 1, 4, 5));
+}
+
+TEST(FlatSetTest, SwapSpecialization) {
+  flat_set<TestKey, TestCompare, TestRepresentation> fs1{-2, -3, 4, -1, -2, 1, 5, -3};
+  flat_set<TestKey, TestCompare, TestRepresentation> fs2{2, 3, -4, 1, 2, -1, -5, 3};
+  std::swap(fs1, fs2);
+  EXPECT_THAT(fs1, TestKeysAre(-5, -4, -1, 1, 2, 3));
+  EXPECT_THAT(fs2, TestKeysAre(-3, -2, -1, 1, 4, 5));
 }
 
 // TODO
