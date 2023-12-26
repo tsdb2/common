@@ -53,8 +53,7 @@ class BlockingRefCounted final : public T {
 
   // Blocks until the reference count drops to zero.
   ~BlockingRefCounted() override {
-    absl::MutexLock lock{&mutex_};
-    mutex_.Await(absl::Condition(this, &BlockingRefCounted::is_zero));
+    absl::MutexLock(&mutex_, absl::Condition(this, &BlockingRefCounted::is_zero));
   }
 
   intptr_t ref_count() const ABSL_LOCKS_EXCLUDED(mutex_) {
