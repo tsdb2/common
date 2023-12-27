@@ -32,6 +32,16 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "flat_map",
+    hdrs = ["flat_map.h"],
+    deps = [
+        ":flat_set_internal",
+        ":to_array",
+        "@com_google_absl//absl/base",
+    ],
+)
+
 cc_test(
     name = "flat_set_test",
     srcs = ["flat_set_test.cc"],
