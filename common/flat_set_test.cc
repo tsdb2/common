@@ -16,6 +16,7 @@
 
 namespace {
 
+using ::testing::_;
 using ::testing::ElementsAre;
 using ::testing::Pair;
 using ::tsdb2::common::fixed_flat_set_of;
@@ -650,6 +651,14 @@ TEST(FixedFlatSetTest, SortStringsReverse) {
   auto constexpr fs =
       fixed_flat_set_of<std::string_view, std::greater<std::string_view>>({"b", "a", "c"});
   EXPECT_THAT(fs, ElementsAre("c", "b", "a"));
+}
+
+TEST(FixedFlatSetDeathTest, ConstructIntsWithDuplicates) {
+  EXPECT_DEATH(fixed_flat_set_of({1, 2, 1, 3}), _);
+}
+
+TEST(FixedFlatSetDeathTest, ConstructStringsWithDuplicates) {
+  EXPECT_DEATH(fixed_flat_set_of({"a", "b", "a", "c"}), _);
 }
 
 }  // namespace

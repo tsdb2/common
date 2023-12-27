@@ -3,6 +3,7 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdlib>
 #include <type_traits>
 #include <utility>
 
@@ -50,7 +51,7 @@ template <typename T, size_t N, typename Compare>
 constexpr void ConstexprCheckDuplications(std::array<T, N> const& array, Compare const& cmp) {
   for (size_t i = 1; i < N; ++i) {
     if (!cmp(array[i - 1], array[i])) {
-      static_assert("fixed flat_set contains duplicates!");
+      std::abort();
     }
   }
 }
