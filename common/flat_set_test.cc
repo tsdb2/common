@@ -17,6 +17,7 @@
 namespace {
 
 using ::testing::ElementsAre;
+using ::testing::Pair;
 using ::tsdb2::common::fixed_flat_set_of;
 using ::tsdb2::common::FixedT;
 using ::tsdb2::common::FixedV;
@@ -533,19 +534,93 @@ TYPED_TEST_P(FlatSetWithRepresentationTest, ConstFindMissing) {
   EXPECT_EQ(it, fs.end());
 }
 
-// TODO
+TYPED_TEST_P(FlatSetWithRepresentationTest, Contains) {
+  flat_set<TestKey, TestCompare, TypeParam> const fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  EXPECT_TRUE(fs.contains(TestKey(4)));
+}
 
-REGISTER_TYPED_TEST_SUITE_P(FlatSetWithRepresentationTest, Construct, ConstructWithIterators,
-                            ConstructWithInitializerList, AssignInitializerList, Deduplication,
-                            CompareEqual, CompareLHSLessThanRHS, CompareLHSGreaterThanRHS,
-                            CopyConstruct, Copy, MoveConstruct, Move, Empty, NotEmpty, Clear,
-                            Insert, MoveInsert, InsertCollision, MoveInsertCollision,
-                            InsertFromIterators, InsertFromInitializerList, InsertNode,
-                            InsertNodeCollision, InsertEmptyNode, Emplace, EmplaceCollision,
-                            EraseIterator, EraseRange, EraseKey, EraseNotFound, EraseKeyTransparent,
-                            Swap, SwapSpecialization, ExtractIterator, ExtractKey, ExtractMissing,
-                            ExtractKeyTransparent, ExtractRep, Count, Find, FindTransparent,
-                            FindMissing, ConstFind, ConstFindTransparent, ConstFindMissing);
+TYPED_TEST_P(FlatSetWithRepresentationTest, ContainsTransparent) {
+  flat_set<TestKey, TransparentTestCompare, TypeParam> const fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  EXPECT_TRUE(fs.contains(4));
+}
+
+TYPED_TEST_P(FlatSetWithRepresentationTest, ContainsMissing) {
+  flat_set<TestKey, TestCompare, TypeParam> const fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  EXPECT_FALSE(fs.contains(TestKey(7)));
+}
+
+TYPED_TEST_P(FlatSetWithRepresentationTest, EqualRange) {
+  flat_set<TestKey, TestCompare, TypeParam> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  auto const it = fs.find(TestKey(1));
+  EXPECT_THAT(fs.equal_range(TestKey(1)), Pair(it, it + 1));
+}
+
+TYPED_TEST_P(FlatSetWithRepresentationTest, ConstEqualRange) {
+  flat_set<TestKey, TestCompare, TypeParam> const fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  auto const it = fs.find(TestKey(1));
+  EXPECT_THAT(fs.equal_range(TestKey(1)), Pair(it, it + 1));
+}
+
+TYPED_TEST_P(FlatSetWithRepresentationTest, LowerBoundExclusive) {
+  flat_set<TestKey, TestCompare, TypeParam> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  auto const it = fs.lower_bound(TestKey(0));
+  EXPECT_EQ(it->field, 1);
+}
+
+TYPED_TEST_P(FlatSetWithRepresentationTest, ConstLowerBoundExclusive) {
+  flat_set<TestKey, TestCompare, TypeParam> const fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  auto const it = fs.lower_bound(TestKey(0));
+  EXPECT_EQ(it->field, 1);
+}
+
+TYPED_TEST_P(FlatSetWithRepresentationTest, LowerBoundInclusive) {
+  flat_set<TestKey, TestCompare, TypeParam> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  auto const it = fs.lower_bound(TestKey(1));
+  EXPECT_EQ(it->field, 1);
+}
+
+TYPED_TEST_P(FlatSetWithRepresentationTest, ConstLowerBoundInclusive) {
+  flat_set<TestKey, TestCompare, TypeParam> const fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  auto const it = fs.lower_bound(TestKey(1));
+  EXPECT_EQ(it->field, 1);
+}
+
+TYPED_TEST_P(FlatSetWithRepresentationTest, UpperBoundExclusive) {
+  flat_set<TestKey, TestCompare, TypeParam> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  auto const it = fs.upper_bound(TestKey(0));
+  EXPECT_EQ(it->field, 1);
+}
+
+TYPED_TEST_P(FlatSetWithRepresentationTest, ConstUpperBoundExclusive) {
+  flat_set<TestKey, TestCompare, TypeParam> const fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  auto const it = fs.upper_bound(TestKey(0));
+  EXPECT_EQ(it->field, 1);
+}
+
+TYPED_TEST_P(FlatSetWithRepresentationTest, UpperBoundInclusive) {
+  flat_set<TestKey, TestCompare, TypeParam> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  auto const it = fs.upper_bound(TestKey(1));
+  EXPECT_EQ(it->field, 4);
+}
+
+TYPED_TEST_P(FlatSetWithRepresentationTest, ConstUpperBoundInclusive) {
+  flat_set<TestKey, TestCompare, TypeParam> const fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  auto const it = fs.upper_bound(TestKey(1));
+  EXPECT_EQ(it->field, 4);
+}
+
+REGISTER_TYPED_TEST_SUITE_P(
+    FlatSetWithRepresentationTest, Construct, ConstructWithIterators, ConstructWithInitializerList,
+    AssignInitializerList, Deduplication, CompareEqual, CompareLHSLessThanRHS,
+    CompareLHSGreaterThanRHS, CopyConstruct, Copy, MoveConstruct, Move, Empty, NotEmpty, Clear,
+    Insert, MoveInsert, InsertCollision, MoveInsertCollision, InsertFromIterators,
+    InsertFromInitializerList, InsertNode, InsertNodeCollision, InsertEmptyNode, Emplace,
+    EmplaceCollision, EraseIterator, EraseRange, EraseKey, EraseNotFound, EraseKeyTransparent, Swap,
+    SwapSpecialization, ExtractIterator, ExtractKey, ExtractMissing, ExtractKeyTransparent,
+    ExtractRep, Count, Find, FindTransparent, FindMissing, ConstFind, ConstFindTransparent,
+    ConstFindMissing, Contains, ContainsTransparent, ContainsMissing, EqualRange, ConstEqualRange,
+    LowerBoundExclusive, ConstLowerBoundExclusive, LowerBoundInclusive, ConstLowerBoundInclusive,
+    UpperBoundExclusive, ConstUpperBoundExclusive, UpperBoundInclusive, ConstUpperBoundInclusive);
 
 using RepresentationTypes = ::testing::Types<std::vector<TestKey>, std::deque<TestKey>>;
 INSTANTIATE_TYPED_TEST_SUITE_P(FlatSetWithRepresentationTest, FlatSetWithRepresentationTest,
