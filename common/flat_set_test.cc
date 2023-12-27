@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <deque>
 #include <functional>
+#include <string_view>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -16,6 +17,7 @@
 namespace {
 
 using ::testing::ElementsAre;
+using ::tsdb2::common::fixed_flat_set_of;
 using ::tsdb2::common::FixedT;
 using ::tsdb2::common::FixedV;
 using ::tsdb2::common::flat_set;
@@ -47,7 +49,6 @@ struct TransparentTestCompare {
 };
 
 using TestRepresentation = std::deque<TestKey>;
-using TestAllocator = typename TestRepresentation::allocator_type;
 
 template <typename Inner>
 class TestKeyMatcher : public ::testing::MatcherInterface<TestKey const&> {
@@ -127,7 +128,6 @@ TEST(FlatSetTest, Traits) {
   EXPECT_TRUE((std::is_same_v<typename flat_set::difference_type, ptrdiff_t>));
   EXPECT_TRUE((std::is_same_v<typename flat_set::key_compare, TestCompare>));
   EXPECT_TRUE((std::is_same_v<typename flat_set::value_compare, TestCompare>));
-  EXPECT_TRUE((std::is_same_v<typename flat_set::allocator_type, TestAllocator>));
   EXPECT_TRUE((std::is_same_v<typename flat_set::reference, TestKey&>));
   EXPECT_TRUE((std::is_same_v<typename flat_set::const_reference, TestKey const&>));
   EXPECT_TRUE((std::is_same_v<typename flat_set::pointer, TestKey*>));
@@ -151,8 +151,6 @@ TEST(FlatSetTest, DefaultRepresentation) {
   EXPECT_TRUE((std::is_same_v<typename flat_set::difference_type, ptrdiff_t>));
   EXPECT_TRUE((std::is_same_v<typename flat_set::key_compare, TestCompare>));
   EXPECT_TRUE((std::is_same_v<typename flat_set::value_compare, TestCompare>));
-  EXPECT_TRUE((std::is_same_v<typename flat_set::allocator_type,
-                              typename std::vector<TestKey>::allocator_type>));
   EXPECT_TRUE((std::is_same_v<typename flat_set::reference, TestKey&>));
   EXPECT_TRUE((std::is_same_v<typename flat_set::const_reference, TestKey const&>));
   EXPECT_TRUE((std::is_same_v<typename flat_set::pointer, TestKey*>));
@@ -176,8 +174,6 @@ TEST(FlatSetTest, DefaultComparator) {
   EXPECT_TRUE((std::is_same_v<typename flat_set::difference_type, ptrdiff_t>));
   EXPECT_TRUE((std::is_same_v<typename flat_set::key_compare, std::less<TestKey>>));
   EXPECT_TRUE((std::is_same_v<typename flat_set::value_compare, std::less<TestKey>>));
-  EXPECT_TRUE((std::is_same_v<typename flat_set::allocator_type,
-                              typename std::vector<TestKey>::allocator_type>));
   EXPECT_TRUE((std::is_same_v<typename flat_set::reference, TestKey&>));
   EXPECT_TRUE((std::is_same_v<typename flat_set::const_reference, TestKey const&>));
   EXPECT_TRUE((std::is_same_v<typename flat_set::pointer, TestKey*>));
@@ -198,31 +194,20 @@ class FlatSetWithRepresentationTest : public ::testing::Test {};
 TYPED_TEST_SUITE_P(FlatSetWithRepresentationTest);
 
 TYPED_TEST_P(FlatSetWithRepresentationTest, Construct) {
-  flat_set<TestKey, TestCompare, TypeParam> fs1{TestCompare(), TestAllocator()};
+  flat_set<TestKey, TestCompare, TypeParam> fs1{TestCompare()};
   EXPECT_THAT(fs1, TestKeysAre<TypeParam>());
-  flat_set<TestKey, TestCompare, TypeParam> fs2{TestCompare()};
+  flat_set<TestKey, TestCompare, TypeParam> fs2{};
   EXPECT_THAT(fs2, TestKeysAre<TypeParam>());
-  flat_set<TestKey, TestCompare, TypeParam> fs3{TestAllocator()};
-  EXPECT_THAT(fs3, TestKeysAre<TypeParam>());
-  flat_set<TestKey, TestCompare, TypeParam> fs4{};
-  EXPECT_THAT(fs4, TestKeysAre<TypeParam>());
 }
 
 TYPED_TEST_P(FlatSetWithRepresentationTest, ConstructWithIterators) {
   std::vector<TestKey> keys{-2, -3, 4, -1, -2, 1, 5, -3};
 
-  flat_set<TestKey, TestCompare, TypeParam> fs1{keys.begin(), keys.end(), TestCompare(),
-                                                TestAllocator()};
+  flat_set<TestKey, TestCompare, TypeParam> fs1{keys.begin(), keys.end(), TestCompare()};
   EXPECT_THAT(fs1, TestKeysAre<TypeParam>(-3, -2, -1, 1, 4, 5));
 
-  flat_set<TestKey, TestCompare, TypeParam> fs2{keys.begin(), keys.end(), TestCompare()};
+  flat_set<TestKey, TestCompare, TypeParam> fs2{keys.begin(), keys.end()};
   EXPECT_THAT(fs2, TestKeysAre<TypeParam>(-3, -2, -1, 1, 4, 5));
-
-  flat_set<TestKey, TestCompare, TypeParam> fs3{keys.begin(), keys.end(), TestAllocator()};
-  EXPECT_THAT(fs3, TestKeysAre<TypeParam>(-3, -2, -1, 1, 4, 5));
-
-  flat_set<TestKey, TestCompare, TypeParam> fs4{keys.begin(), keys.end()};
-  EXPECT_THAT(fs4, TestKeysAre<TypeParam>(-3, -2, -1, 1, 4, 5));
 }
 
 TYPED_TEST_P(FlatSetWithRepresentationTest, ConstructWithInitializerList) {
@@ -565,5 +550,31 @@ REGISTER_TYPED_TEST_SUITE_P(FlatSetWithRepresentationTest, Construct, ConstructW
 using RepresentationTypes = ::testing::Types<std::vector<TestKey>, std::deque<TestKey>>;
 INSTANTIATE_TYPED_TEST_SUITE_P(FlatSetWithRepresentationTest, FlatSetWithRepresentationTest,
                                RepresentationTypes);
+
+TEST(FixedFlatSetTest, ConstructInts) {
+  auto constexpr fs = fixed_flat_set_of({1, 2, 3});
+  EXPECT_THAT(fs, ElementsAre(1, 2, 3));
+}
+
+TEST(FixedFlatSetTest, ConstructStrings) {
+  auto constexpr fs = fixed_flat_set_of<std::string_view>({"a", "b", "c"});
+  EXPECT_THAT(fs, ElementsAre("a", "b", "c"));
+}
+
+TEST(FixedFlatSetTest, SortInts) {
+  auto constexpr fs = fixed_flat_set_of({1, 3, 2});
+  EXPECT_THAT(fs, ElementsAre(1, 2, 3));
+}
+
+TEST(FixedFlatSetTest, SortIntsReverse) {
+  auto constexpr fs = fixed_flat_set_of<int, std::greater<int>>({1, 3, 2});
+  EXPECT_THAT(fs, ElementsAre(3, 2, 1));
+}
+
+TEST(FixedFlatSetTest, SortStringsReverse) {
+  auto constexpr fs =
+      fixed_flat_set_of<std::string_view, std::greater<std::string_view>>({"b", "a", "c"});
+  EXPECT_THAT(fs, ElementsAre("c", "b", "a"));
+}
 
 }  // namespace

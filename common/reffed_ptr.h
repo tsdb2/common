@@ -112,7 +112,7 @@ class reffed_ptr final {
   T* operator->() const { return ptr_; }
 
   // Returns `true` iff the wrapped pointer is != nullptr.
-  explicit operator bool() const { return !!ptr_; }
+  explicit operator bool() const { return ptr_ != nullptr; }
 
   template <typename U>
   friend bool operator==(reffed_ptr<T> const& lhs, reffed_ptr<U> const& rhs) {

@@ -8,6 +8,7 @@
 #define __TSDB2_COMMON_FLAT_SET_H__
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <functional>
 #include <initializer_list>
@@ -19,23 +20,11 @@
 #include <vector>
 
 #include "absl/base/attributes.h"
+#include "common/flat_set_internal.h"
+#include "common/to_array.h"
 
 namespace tsdb2 {
 namespace common {
-
-namespace internal {
-
-template <typename KeyType, typename KeyArg, typename Compare, typename IsTransparent = void>
-struct key_arg {
-  using type = KeyType;
-};
-
-template <typename KeyType, typename KeyArg, typename Compare>
-struct key_arg<KeyType, KeyArg, Compare, std::void_t<typename Compare::is_transparent>> {
-  using type = KeyArg;
-};
-
-}  // namespace internal
 
 template <typename Key, typename Compare = std::less<Key>,
           typename Representation = std::vector<Key>>
@@ -73,11 +62,10 @@ class flat_set {
   using difference_type = ptrdiff_t;
   using key_compare = Compare;
   using value_compare = Compare;
-  using allocator_type = typename Representation::allocator_type;
   using reference = value_type&;
   using const_reference = value_type const&;
-  using pointer = typename std::allocator_traits<allocator_type>::pointer;
-  using const_pointer = typename std::allocator_traits<allocator_type>::const_pointer;
+  using pointer = typename Representation::pointer;
+  using const_pointer = typename Representation::const_pointer;
   using iterator = typename Representation::iterator const;
   using const_iterator = typename Representation::const_iterator;
   using reverse_iterator = typename Representation::reverse_iterator const;
@@ -95,23 +83,18 @@ class flat_set {
 
   flat_set() : flat_set(Compare()) {}
 
-  explicit flat_set(Compare const& comp, allocator_type const& alloc = allocator_type())
-      : comp_(comp), rep_(alloc) {}
+  explicit constexpr flat_set(SortedDeduplicatedContainer, Representation rep,
+                              Compare const& comp = Compare())
+      : comp_(comp), rep_(std::move(rep)) {}
 
-  explicit flat_set(allocator_type const& alloc) : rep_(alloc) {}
+  explicit flat_set(Compare const& comp) : comp_(comp) {}
 
   template <typename InputIt>
-  explicit flat_set(InputIt first, InputIt last, Compare const& comp = Compare(),
-                    allocator_type const& alloc = allocator_type())
-      : comp_(comp), rep_(alloc) {
+  explicit flat_set(InputIt first, InputIt last, Compare const& comp = Compare()) : comp_(comp) {
     for (; first != last; ++first) {
       insert(*first);
     }
   }
-
-  template <typename InputIt>
-  explicit flat_set(InputIt first, InputIt last, allocator_type const& alloc)
-      : flat_set(first, last, Compare(), alloc) {}
 
   flat_set(flat_set const& other) : comp_(other.comp_), rep_(other.rep_) {}
 
@@ -130,16 +113,12 @@ class flat_set {
     return *this;
   }
 
-  flat_set(std::initializer_list<value_type> const init, Compare const& comp = Compare(),
-           allocator_type const& alloc = allocator_type())
-      : comp_(comp), rep_(alloc) {
+  flat_set(std::initializer_list<value_type> const init, Compare const& comp = Compare())
+      : comp_(comp) {
     for (auto& value : init) {
       insert(value);
     }
   }
-
-  flat_set(std::initializer_list<value_type> const init, allocator_type const& alloc)
-      : flat_set(init, Compare(), alloc) {}
 
   flat_set& operator=(std::initializer_list<value_type> const init) {
     for (auto& value : init) {
@@ -154,8 +133,6 @@ class flat_set {
   friend bool operator<=(flat_set const& lhs, flat_set const& rhs) { return lhs.rep_ <= rhs.rep_; }
   friend bool operator>(flat_set const& lhs, flat_set const& rhs) { return lhs.rep_ > rhs.rep_; }
   friend bool operator>=(flat_set const& lhs, flat_set const& rhs) { return lhs.rep_ >= rhs.rep_; }
-
-  allocator_type get_allocator() const noexcept { return rep_.get_allocator(); }
 
   iterator begin() noexcept { return rep_.begin(); }
   const_iterator begin() const noexcept { return rep_.begin(); }
@@ -351,6 +328,21 @@ class flat_set {
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Compare comp_;
   Representation rep_;
 };
+
+template <typename T, typename Compare = std::less<std::decay_t<T>>, size_t const N>
+constexpr flat_set<T, Compare, std::array<T, N>> fixed_flat_set_of(std::array<T, N> array,
+                                                                   Compare&& comp = Compare()) {
+  internal::ConstexprSort(array, comp);
+  internal::ConstexprCheckDuplications(array, comp);
+  return flat_set<T, Compare, std::array<T, N>>(kSortedDeduplicatedContainer, std::move(array),
+                                                std::forward<Compare>(comp));
+}
+
+template <typename T, typename Compare = std::less<std::decay_t<T>>, size_t const N>
+constexpr flat_set<T, Compare, std::array<T, N>> fixed_flat_set_of(T const (&values)[N],
+                                                                   Compare&& comp = Compare()) {
+  return fixed_flat_set_of<T, Compare, N>(to_array(values), std::forward<Compare>(comp));
+}
 
 }  // namespace common
 }  // namespace tsdb2

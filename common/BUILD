@@ -1,6 +1,11 @@
 package(default_visibility = ["//visibility:public"])
 
 cc_library(
+    name = "to_array",
+    hdrs = ["to_array.h"],
+)
+
+cc_library(
     name = "fixed",
     hdrs = ["fixed.h"],
 )
@@ -12,9 +17,17 @@ cc_library(
 )
 
 cc_library(
+    name = "flat_set_internal",
+    hdrs = ["flat_set_internal.h"],
+    visibility = ["//visibility:private"],
+)
+
+cc_library(
     name = "flat_set",
     hdrs = ["flat_set.h"],
     deps = [
+        ":flat_set_internal",
+        ":to_array",
         "@com_google_absl//absl/base",
     ],
 )
