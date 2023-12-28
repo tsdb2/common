@@ -20,7 +20,7 @@
 #include <vector>
 
 #include "absl/base/attributes.h"
-#include "common/flat_set_internal.h"
+#include "common/flat_container_internal.h"
 #include "common/to_array.h"
 
 namespace tsdb2 {
@@ -96,22 +96,10 @@ class flat_set {
     }
   }
 
-  flat_set(flat_set const& other) : comp_(other.comp_), rep_(other.rep_) {}
-
-  flat_set& operator=(flat_set const& other) {
-    comp_ = other.comp_;
-    rep_ = other.rep_;
-    return *this;
-  }
-
-  flat_set(flat_set&& other) noexcept
-      : comp_(std::move(other.comp_)), rep_(std::move(other.rep_)) {}
-
-  flat_set& operator=(flat_set&& other) noexcept {
-    comp_ = std::move(other.comp_);
-    rep_ = std::move(other.rep_);
-    return *this;
-  }
+  flat_set(flat_set const& other) = default;
+  flat_set& operator=(flat_set const& other) = default;
+  flat_set(flat_set&& other) noexcept = default;
+  flat_set& operator=(flat_set&& other) noexcept = default;
 
   flat_set(std::initializer_list<value_type> const init, Compare const& comp = Compare())
       : comp_(comp) {
@@ -127,12 +115,21 @@ class flat_set {
     return *this;
   }
 
-  friend bool operator==(flat_set const& lhs, flat_set const& rhs) { return lhs.rep_ == rhs.rep_; }
-  friend bool operator!=(flat_set const& lhs, flat_set const& rhs) { return lhs.rep_ != rhs.rep_; }
-  friend bool operator<(flat_set const& lhs, flat_set const& rhs) { return lhs.rep_ < rhs.rep_; }
-  friend bool operator<=(flat_set const& lhs, flat_set const& rhs) { return lhs.rep_ <= rhs.rep_; }
-  friend bool operator>(flat_set const& lhs, flat_set const& rhs) { return lhs.rep_ > rhs.rep_; }
-  friend bool operator>=(flat_set const& lhs, flat_set const& rhs) { return lhs.rep_ >= rhs.rep_; }
+  friend bool operator==(flat_set const& lhs, flat_set const& rhs) {
+    return !(lhs < rhs) && !(rhs < lhs);
+  }
+
+  friend bool operator!=(flat_set const& lhs, flat_set const& rhs) { return !(lhs == rhs); }
+
+  friend bool operator<(flat_set const& lhs, flat_set const& rhs) {
+    return std::lexicographical_compare(lhs.begin(), lhs.end(), rhs.begin(), rhs.end(), Compare());
+  }
+
+  friend bool operator<=(flat_set const& lhs, flat_set const& rhs) { return !(rhs < lhs); }
+
+  friend bool operator>(flat_set const& lhs, flat_set const& rhs) { return rhs < lhs; }
+
+  friend bool operator>=(flat_set const& lhs, flat_set const& rhs) { return !(lhs < rhs); }
 
   iterator begin() noexcept { return rep_.begin(); }
   const_iterator begin() const noexcept { return rep_.begin(); }

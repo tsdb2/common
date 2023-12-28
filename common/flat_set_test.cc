@@ -10,7 +10,7 @@
 #include <utility>
 #include <vector>
 
-#include "common/fixed.h"
+#include "common/flat_container_testing.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
@@ -20,106 +20,15 @@ using ::testing::_;
 using ::testing::ElementsAre;
 using ::testing::Pair;
 using ::tsdb2::common::fixed_flat_set_of;
-using ::tsdb2::common::FixedT;
-using ::tsdb2::common::FixedV;
 using ::tsdb2::common::flat_set;
-
-struct TestKey {
-  TestKey(int const field_value) : field(field_value) {}
-
-  friend bool operator==(TestKey const& lhs, TestKey const& rhs) { return lhs.field == rhs.field; }
-  friend bool operator!=(TestKey const& lhs, TestKey const& rhs) { return !operator==(lhs, rhs); }
-
-  friend bool operator<(TestKey const& lhs, TestKey const& rhs) { return lhs.field < rhs.field; }
-  friend bool operator<=(TestKey const& lhs, TestKey const& rhs) { return lhs.field <= rhs.field; }
-  friend bool operator>(TestKey const& lhs, TestKey const& rhs) { return lhs.field > rhs.field; }
-  friend bool operator>=(TestKey const& lhs, TestKey const& rhs) { return lhs.field >= rhs.field; }
-
-  int field;
-};
-
-struct TestCompare {
-  bool operator()(TestKey const& lhs, TestKey const& rhs) const { return lhs.field < rhs.field; }
-};
-
-struct TransparentTestCompare {
-  using is_transparent = void;
-  template <typename RHS>
-  bool operator()(TestKey const& lhs, RHS const& rhs) const {
-    return lhs.field < rhs.field;
-  }
-};
-
-using TestRepresentation = std::deque<TestKey>;
-
-template <typename Inner>
-class TestKeyMatcher : public ::testing::MatcherInterface<TestKey const&> {
- public:
-  using is_gtest_matcher = void;
-
-  explicit TestKeyMatcher(Inner inner) : inner_(std::move(inner)) {}
-  ~TestKeyMatcher() override = default;
-
-  bool MatchAndExplain(TestKey const& value,
-                       ::testing::MatchResultListener* const listener) const override {
-    return ::testing::MatcherCast<int>(inner_).MatchAndExplain(value.field, listener);
-  }
-
-  void DescribeTo(std::ostream* const os) const override {
-    ::testing::MatcherCast<int>(inner_).DescribeTo(os);
-  }
-
- private:
-  Inner inner_;
-};
-
-template <typename Inner>
-TestKeyMatcher<std::decay_t<Inner>> TestKeyEq(Inner&& inner) {
-  return TestKeyMatcher<std::decay_t<Inner>>(std::forward<Inner>(inner));
-}
-
-template <typename FlatSet, typename... Inner>
-class TestKeysMatcher;
-
-template <typename Key, typename Compare, typename Representation, typename... Inner>
-class TestKeysMatcher<flat_set<Key, Compare, Representation>, Inner...>
-    : public ::testing::MatcherInterface<flat_set<Key, Compare, Representation> const&> {
- public:
-  using is_gtest_matcher = void;
-
-  using Tuple = std::tuple<FixedT<TestKey, Inner>...>;
-
-  explicit TestKeysMatcher(Inner&&... inner) : inner_{std::forward<Inner>(inner)...} {}
-  ~TestKeysMatcher() override = default;
-
-  bool MatchAndExplain(flat_set<Key, Compare, Representation> const& value,
-                       ::testing::MatchResultListener* const listener) const override {
-    auto it = value.begin();
-    Tuple values{TestKey(FixedV<Inner>(*it++))...};
-    return ::testing::MatcherCast<Tuple>(inner_).MatchAndExplain(values, listener);
-  }
-
-  void DescribeTo(std::ostream* const os) const override {
-    ::testing::MatcherCast<Tuple>(inner_).DescribeTo(os);
-  }
-
- private:
-  std::tuple<Inner...> inner_;
-};
-
-template <typename Representation, typename... Inner>
-TestKeysMatcher<flat_set<TestKey, TestCompare, Representation>, std::decay_t<Inner>...> TestKeysAre(
-    Inner&&... inner) {
-  return TestKeysMatcher<flat_set<TestKey, TestCompare, Representation>, std::decay_t<Inner>...>(
-      std::forward<Inner>(inner)...);
-}
-
-template <typename Representation, typename... Inner>
-TestKeysMatcher<flat_set<TestKey, TransparentTestCompare, Representation>, std::decay_t<Inner>...>
-TransparentTestKeysAre(Inner&&... inner) {
-  return TestKeysMatcher<flat_set<TestKey, TransparentTestCompare, Representation>,
-                         std::decay_t<Inner>...>(std::forward<Inner>(inner)...);
-}
+using ::tsdb2::testing::ReverseTestCompare;
+using ::tsdb2::testing::TestCompare;
+using ::tsdb2::testing::TestKey;
+using ::tsdb2::testing::TestKeyEq;
+using ::tsdb2::testing::TestKeysAre;
+using ::tsdb2::testing::TestRepresentation;
+using ::tsdb2::testing::TransparentTestCompare;
+using ::tsdb2::testing::TransparentTestKeysAre;
 
 TEST(FlatSetTest, Traits) {
   using flat_set = flat_set<TestKey, TestCompare, TestRepresentation>;
@@ -254,6 +163,28 @@ TYPED_TEST_P(FlatSetWithRepresentationTest, CompareLHSLessThanRHS) {
 TYPED_TEST_P(FlatSetWithRepresentationTest, CompareLHSGreaterThanRHS) {
   flat_set<TestKey, TestCompare, TypeParam> fs1{-3, 4, -1, 1, 5, -3};
   flat_set<TestKey, TestCompare, TypeParam> fs2{-2, -3, 4, -1, -2, 1, 5, -3};
+  EXPECT_FALSE(fs1 == fs2);
+  EXPECT_TRUE(fs1 != fs2);
+  EXPECT_FALSE(fs1 < fs2);
+  EXPECT_FALSE(fs1 <= fs2);
+  EXPECT_TRUE(fs1 > fs2);
+  EXPECT_TRUE(fs1 >= fs2);
+}
+
+TYPED_TEST_P(FlatSetWithRepresentationTest, ReverseCompareLHSLessThanRHS) {
+  flat_set<TestKey, ReverseTestCompare, TypeParam> fs1{-2, -3, 4, -1, -2, 1, 5, -3};
+  flat_set<TestKey, ReverseTestCompare, TypeParam> fs2{-3, 4, -1, 1, 5, -3};
+  EXPECT_FALSE(fs1 == fs2);
+  EXPECT_TRUE(fs1 != fs2);
+  EXPECT_TRUE(fs1 < fs2);
+  EXPECT_TRUE(fs1 <= fs2);
+  EXPECT_FALSE(fs1 > fs2);
+  EXPECT_FALSE(fs1 >= fs2);
+}
+
+TYPED_TEST_P(FlatSetWithRepresentationTest, ReverseCompareLHSGreaterThanRHS) {
+  flat_set<TestKey, ReverseTestCompare, TypeParam> fs1{-3, 4, -1, 1, 5, -3};
+  flat_set<TestKey, ReverseTestCompare, TypeParam> fs2{-2, -3, 4, -1, -2, 1, 5, -3};
   EXPECT_FALSE(fs1 == fs2);
   EXPECT_TRUE(fs1 != fs2);
   EXPECT_FALSE(fs1 < fs2);
@@ -613,15 +544,16 @@ TYPED_TEST_P(FlatSetWithRepresentationTest, ConstUpperBoundInclusive) {
 REGISTER_TYPED_TEST_SUITE_P(
     FlatSetWithRepresentationTest, Construct, ConstructWithIterators, ConstructWithInitializerList,
     AssignInitializerList, Deduplication, CompareEqual, CompareLHSLessThanRHS,
-    CompareLHSGreaterThanRHS, CopyConstruct, Copy, MoveConstruct, Move, Empty, NotEmpty, Clear,
-    Insert, MoveInsert, InsertCollision, MoveInsertCollision, InsertFromIterators,
-    InsertFromInitializerList, InsertNode, InsertNodeCollision, InsertEmptyNode, Emplace,
-    EmplaceCollision, EraseIterator, EraseRange, EraseKey, EraseNotFound, EraseKeyTransparent, Swap,
-    SwapSpecialization, ExtractIterator, ExtractKey, ExtractMissing, ExtractKeyTransparent,
-    ExtractRep, Count, Find, FindTransparent, FindMissing, ConstFind, ConstFindTransparent,
-    ConstFindMissing, Contains, ContainsTransparent, ContainsMissing, EqualRange, ConstEqualRange,
-    LowerBoundExclusive, ConstLowerBoundExclusive, LowerBoundInclusive, ConstLowerBoundInclusive,
-    UpperBoundExclusive, ConstUpperBoundExclusive, UpperBoundInclusive, ConstUpperBoundInclusive);
+    CompareLHSGreaterThanRHS, ReverseCompareLHSLessThanRHS, ReverseCompareLHSGreaterThanRHS,
+    CopyConstruct, Copy, MoveConstruct, Move, Empty, NotEmpty, Clear, Insert, MoveInsert,
+    InsertCollision, MoveInsertCollision, InsertFromIterators, InsertFromInitializerList,
+    InsertNode, InsertNodeCollision, InsertEmptyNode, Emplace, EmplaceCollision, EraseIterator,
+    EraseRange, EraseKey, EraseNotFound, EraseKeyTransparent, Swap, SwapSpecialization,
+    ExtractIterator, ExtractKey, ExtractMissing, ExtractKeyTransparent, ExtractRep, Count, Find,
+    FindTransparent, FindMissing, ConstFind, ConstFindTransparent, ConstFindMissing, Contains,
+    ContainsTransparent, ContainsMissing, EqualRange, ConstEqualRange, LowerBoundExclusive,
+    ConstLowerBoundExclusive, LowerBoundInclusive, ConstLowerBoundInclusive, UpperBoundExclusive,
+    ConstUpperBoundExclusive, UpperBoundInclusive, ConstUpperBoundInclusive);
 
 using RepresentationTypes = ::testing::Types<std::vector<TestKey>, std::deque<TestKey>>;
 INSTANTIATE_TYPED_TEST_SUITE_P(FlatSetWithRepresentationTest, FlatSetWithRepresentationTest,

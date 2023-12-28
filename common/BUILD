@@ -17,26 +17,29 @@ cc_library(
 )
 
 cc_library(
-    name = "flat_set_internal",
-    hdrs = ["flat_set_internal.h"],
+    name = "flat_container_internal",
+    hdrs = ["flat_container_internal.h"],
     visibility = ["//visibility:private"],
+)
+
+cc_library(
+    name = "flat_container_testing",
+    testonly = True,
+    hdrs = ["flat_container_testing.h"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":fixed",
+        ":flat_map",
+        ":flat_set",
+        "@com_google_googletest//:gtest_main",
+    ],
 )
 
 cc_library(
     name = "flat_set",
     hdrs = ["flat_set.h"],
     deps = [
-        ":flat_set_internal",
-        ":to_array",
-        "@com_google_absl//absl/base",
-    ],
-)
-
-cc_library(
-    name = "flat_map",
-    hdrs = ["flat_map.h"],
-    deps = [
-        ":flat_set_internal",
+        ":flat_container_internal",
         ":to_array",
         "@com_google_absl//absl/base",
     ],
@@ -46,8 +49,28 @@ cc_test(
     name = "flat_set_test",
     srcs = ["flat_set_test.cc"],
     deps = [
-        ":fixed",
+        ":flat_container_testing",
         ":flat_set",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "flat_map",
+    hdrs = ["flat_map.h"],
+    deps = [
+        ":flat_container_internal",
+        ":to_array",
+        "@com_google_absl//absl/base",
+    ],
+)
+
+cc_test(
+    name = "flat_map_test",
+    srcs = ["flat_map_test.cc"],
+    deps = [
+        ":flat_container_testing",
+        ":flat_map",
         "@com_google_googletest//:gtest_main",
     ],
 )

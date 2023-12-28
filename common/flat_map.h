@@ -10,20 +10,24 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <initializer_list>
+#include <stdexcept>
 #include <utility>
 
 #include "absl/base/attributes.h"
+#include "common/flat_container_internal.h"
 
 namespace tsdb2 {
 namespace common {
 
 template <typename Key, typename T, typename Compare = std::less<Key>,
-          typename Representation = std::vector<std::pair<const Key, T>>>
+          typename Representation = std::vector<std::pair<Key const, T>>>
 class flat_map {
  public:
   using key_type = Key;
   using mapped_type = T;
-  using value_type = std::pair<const Key, T>;
+  using value_type = std::pair<Key const, T>;
+  using representation_type = Representation;
   using size_type = size_t;
   using difference_type = ptrdiff_t;
   using key_compare = Compare;
@@ -56,7 +60,7 @@ class flat_map {
    public:
     explicit value_compare(Compare const& comp) : comp_(comp) {}
 
-    bool operator()(value_type const& lhs, value_type consy& rhs) const {
+    bool operator()(value_type const& lhs, value_type const& rhs) const {
       return comp_(lhs.first, rhs.first);
     }
 
@@ -67,6 +71,116 @@ class flat_map {
   flat_map() : flat_map(Compare()) {}
 
   explicit flat_map(Compare const& comp) : comp_(comp) {}
+
+  template <class InputIt>
+  flat_map(InputIt first, InputIt last, Compare const& comp = Compare()) {
+    for (; first != last; ++first) {
+      insert(*first);
+    }
+  }
+
+  flat_map(flat_map const& other) = default;
+  flat_map& operator=(flat_map const& other) = default;
+  flat_map(flat_map&& other) noexcept = default;
+  flat_map& operator=(flat_map&& other) noexcept = default;
+
+  flat_map(std::initializer_list<value_type> const init, Compare const& comp = Compare())
+      : comp_(comp), rep_(init) {}
+
+  flat_map& operator=(std::initializer_list<value_type> const init) {
+    for (auto& value : init) {
+      insert(value);
+    }
+    return *this;
+  }
+
+  friend bool operator==(flat_map const& lhs, flat_map const& rhs) {
+    return !(lhs < rhs) && !(rhs < lhs);
+  }
+
+  friend bool operator!=(flat_map const& lhs, flat_map const& rhs) { return !(lhs == rhs); }
+
+  friend bool operator<(flat_map const& lhs, flat_map const& rhs) {
+    return std::lexicographical_compare(lhs.begin(), lhs.end(), rhs.begin(), rhs.end(),
+                                        value_compare(lhs.comp_));
+  }
+
+  friend bool operator<=(flat_map const& lhs, flat_map const& rhs) { return !(rhs < lhs); }
+
+  friend bool operator>(flat_map const& lhs, flat_map const& rhs) { return rhs < lhs; }
+
+  friend bool operator>=(flat_map const& lhs, flat_map const& rhs) { return !(lhs < rhs); }
+
+  T& at(Key const& key) {
+    auto const it = find(key);
+    if (it != end()) {
+      return it->second;
+    } else {
+      throw std::out_of_range("key not found");
+    }
+  }
+
+  T const& at(Key const& key) const {
+    auto const it = find(key);
+    if (it != end()) {
+      return it->second;
+    } else {
+      throw std::out_of_range("key not found");
+    }
+  }
+
+  T& operator[](Key const& key) {
+    auto const [it, unused] = try_emplace(key);
+    return it->second;
+  }
+
+  T& operator[](Key&& key) {
+    auto const [it, unused] = try_emplace(std::move(key));
+    return it->second;
+  }
+
+  iterator begin() noexcept { return rep_.begin(); }
+  const_iterator begin() const noexcept { return rep_.begin(); }
+  const_iterator cbegin() const noexcept { return rep_.cbegin(); }
+  iterator end() noexcept { return rep_.end(); }
+  const_iterator end() const noexcept { return rep_.end(); }
+  const_iterator cend() const noexcept { return rep_.cend(); }
+
+  iterator rbegin() noexcept { return rep_.rbegin(); }
+  const_iterator rbegin() const noexcept { return rep_.rbegin(); }
+  const_iterator crbegin() const noexcept { return rep_.crbegin(); }
+  iterator rend() noexcept { return rep_.rend(); }
+  const_iterator rend() const noexcept { return rep_.rend(); }
+  const_iterator crend() const noexcept { return rep_.crend(); }
+
+  bool empty() const noexcept { return rep_.empty(); }
+  size_t size() const noexcept { return rep_.size(); }
+  size_t max_size() const noexcept { return rep_.max_size(); }
+
+  void clear() noexcept { rep_.clear(); }
+
+  std::pair<iterator, bool> insert(value_type const& value) {
+    value_compare comp{comp_};
+    auto it = std::lower_bound(rep_.begin(), rep_.end(), value, comp);
+    if (it == rep_.end() || comp(value, *it)) {
+      it = rep_.insert(it, value);
+      return std::make_pair(it, true);
+    } else {
+      return std::make_pair(it, false);
+    }
+  }
+
+  template <typename P>
+  std::pair<iterator, bool> insert(P&& value) {
+    value_compare comp{comp_};
+    auto it = std::lower_bound(rep_.begin(), rep_.end(), value, comp);
+    if (it == rep_.end() || comp(value, *it)) {
+      it = rep_.insert(it, std::move(value));
+      return std::make_pair(it, true);
+    } else {
+      return std::make_pair(it, false);
+    }
+  }
 
   // TODO
 
