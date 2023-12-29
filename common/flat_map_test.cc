@@ -9,14 +9,12 @@
 #include <type_traits>
 #include <utility>
 
-#include "common/fixed.h"
 #include "common/flat_container_testing.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace {
 
-using ::tsdb2::common::FixedT;
 using ::tsdb2::common::flat_map;
 using ::tsdb2::testing::TestCompare;
 using ::tsdb2::testing::TestKey;

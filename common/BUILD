@@ -28,9 +28,6 @@ cc_library(
     hdrs = ["flat_container_testing.h"],
     visibility = ["//visibility:private"],
     deps = [
-        ":fixed",
-        ":flat_map",
-        ":flat_set",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -49,6 +46,7 @@ cc_test(
     name = "flat_set_test",
     srcs = ["flat_set_test.cc"],
     deps = [
+        ":fixed",
         ":flat_container_testing",
         ":flat_set",
         "@com_google_googletest//:gtest_main",
