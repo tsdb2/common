@@ -12,6 +12,7 @@
 #include <functional>
 #include <initializer_list>
 #include <stdexcept>
+#include <tuple>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -60,11 +61,15 @@ class flat_map {
    public:
     explicit value_compare(Compare const& comp) : comp_(comp) {}
 
-    bool operator()(value_type const& lhs, value_type const& rhs) const {
-      return comp_(lhs.first, rhs.first);
+    template <typename LHS, typename RHS>
+    bool operator()(LHS const& lhs, RHS const& rhs) const {
+      return comp_(to_key(lhs), to_key(rhs));
     }
 
    private:
+    static key_type const& to_key(value_type const& value) { return value.first; }
+    static key_type const& to_key(key_type const& key) { return key; }
+
     Compare const& comp_;
   };
 
@@ -85,11 +90,16 @@ class flat_map {
   flat_map& operator=(flat_map&& other) noexcept = default;
 
   flat_map(std::initializer_list<value_type> const init, Compare const& comp = Compare())
-      : comp_(comp), rep_(init) {}
+      : comp_(comp) {
+    for (auto& [key, value] : init) {
+      try_emplace(key, value);
+    }
+  }
 
   flat_map& operator=(std::initializer_list<value_type> const init) {
-    for (auto& value : init) {
-      insert(value);
+    rep_.clear();
+    for (auto& [key, value] : init) {
+      try_emplace(key, value);
     }
     return *this;
   }
@@ -172,10 +182,72 @@ class flat_map {
 
   template <typename P>
   std::pair<iterator, bool> insert(P&& value) {
+    return emplace(std::forward<P>(value));
+  }
+
+  std::pair<iterator, bool> insert(value_type&& value) {
     value_compare comp{comp_};
     auto it = std::lower_bound(rep_.begin(), rep_.end(), value, comp);
     if (it == rep_.end() || comp(value, *it)) {
       it = rep_.insert(it, std::move(value));
+      return std::make_pair(it, true);
+    } else {
+      return std::make_pair(it, false);
+    }
+  }
+
+  iterator insert(const_iterator const pos, value_type const& value) {
+    auto [it, unused] = insert(value);
+    return it;
+  }
+
+  template <class P>
+  iterator insert(const_iterator const pos, P&& value) {
+    auto [it, unused] = insert(std::forward<P>(value));
+    return it;
+  }
+
+  iterator insert(const_iterator const pos, value_type&& value) {
+    auto [it, unused] = insert(std::move(value));
+    return it;
+  }
+
+  template <class InputIt>
+  void insert(InputIt first, InputIt last) {
+    for (; first != last; ++first) {
+      insert(*first);
+    }
+  }
+
+  void insert(std::initializer_list<value_type> const init) {
+    for (auto& [key, value] : init) {
+      try_emplace(key, value);
+    }
+  }
+
+  // TODO
+
+  template <typename... Args>
+  std::pair<iterator, bool> try_emplace(Key const& key, Args&&... args) {
+    value_compare comp{comp_};
+    auto it = std::lower_bound(rep_.begin(), rep_.end(), key, comp);
+    if (it == rep_.end() || comp(key, it->first)) {
+      it = rep_.emplace(it, value_type(std::piecewise_construct, std::forward_as_tuple(key),
+                                       std::forward_as_tuple(std::forward<Args>(args)...)));
+      return std::make_pair(it, true);
+    } else {
+      return std::make_pair(it, false);
+    }
+  }
+
+  template <typename... Args>
+  std::pair<iterator, bool> try_emplace(Key&& key, Args&&... args) {
+    value_compare comp{comp_};
+    auto it = std::lower_bound(rep_.begin(), rep_.end(), key, comp);
+    if (it == rep_.end() || comp(key, it->first)) {
+      it = rep_.emplace(it,
+                        value_type(std::piecewise_construct, std::forward_as_tuple(std::move(key)),
+                                   std::forward_as_tuple(std::forward<Args>(args)...)));
       return std::make_pair(it, true);
     } else {
       return std::make_pair(it, false);

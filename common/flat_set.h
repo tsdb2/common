@@ -109,6 +109,7 @@ class flat_set {
   }
 
   flat_set& operator=(std::initializer_list<value_type> const init) {
+    rep_.clear();
     for (auto& value : init) {
       insert(value);
     }

@@ -88,12 +88,13 @@ class TestKeysMatcher<::tsdb2::common::flat_set<Key, Compare, Representation>, I
  public:
   using is_gtest_matcher = void;
 
+  using FlatSet = ::tsdb2::common::flat_set<Key, Compare, Representation>;
   using Tuple = std::tuple<::tsdb2::common::FixedT<TestKey, Inner>...>;
 
   explicit TestKeysMatcher(Inner&&... inner) : inner_{std::forward<Inner>(inner)...} {}
   ~TestKeysMatcher() override = default;
 
-  bool MatchAndExplain(::tsdb2::common::flat_set<Key, Compare, Representation> const& value,
+  bool MatchAndExplain(FlatSet const& value,
                        ::testing::MatchResultListener* const listener) const override {
     auto it = value.begin();
     Tuple values{TestKey(::tsdb2::common::FixedV<Inner>(*it++))...};

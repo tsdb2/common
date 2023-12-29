@@ -127,7 +127,7 @@ TYPED_TEST_P(FlatSetWithRepresentationTest, ConstructWithInitializerList) {
 }
 
 TYPED_TEST_P(FlatSetWithRepresentationTest, AssignInitializerList) {
-  flat_set<TestKey, TestCompare, TypeParam> fs;
+  flat_set<TestKey, TestCompare, TypeParam> fs{1, 2, 3};
   fs = {-2, -3, 4, -1, -2, 1, 5, -3};
   EXPECT_THAT(fs, TestKeysAre<TypeParam>(-3, -2, -1, 1, 4, 5));
 }
