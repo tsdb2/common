@@ -219,7 +219,10 @@ class flat_set {
   }
 
   iterator erase(const_iterator pos) { return rep_.erase(pos); }
-  iterator erase(const_iterator first, const_iterator last) { return rep_.erase(first, last); }
+
+  iterator erase(const_iterator const first, const_iterator const last) {
+    return rep_.erase(first, last);
+  }
 
   template <typename KeyArg = key_type>
   size_type erase(key_arg_t<KeyArg> const& key) {
@@ -236,8 +239,6 @@ class flat_set {
     std::swap(comp_, other.comp_);
     rep_.swap(other.rep_);
   }
-
-  friend void swap(flat_set& lhs, flat_set& rhs) noexcept { lhs.swap(rhs); }
 
   node_type extract(iterator position) {
     node_type node{std::move(*position)};
@@ -344,5 +345,15 @@ constexpr flat_set<T, Compare, std::array<T, N>> fixed_flat_set_of(T const (&val
 
 }  // namespace common
 }  // namespace tsdb2
+
+namespace std {
+
+template <typename Key, typename Compare, typename Representation>
+void swap(::tsdb2::common::flat_set<Key, Compare, Representation>& lhs,
+          ::tsdb2::common::flat_set<Key, Compare, Representation>& rhs) {
+  lhs.swap(rhs);
+}
+
+}  // namespace std
 
 #endif  //__TSDB2_COMMON_FLAT_SET_H__

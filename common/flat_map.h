@@ -22,12 +22,12 @@ namespace tsdb2 {
 namespace common {
 
 template <typename Key, typename T, typename Compare = std::less<Key>,
-          typename Representation = std::vector<std::pair<Key const, T>>>
+          typename Representation = std::vector<std::pair<Key, T>>>
 class flat_map {
  public:
   using key_type = Key;
   using mapped_type = T;
-  using value_type = std::pair<Key const, T>;
+  using value_type = std::pair<Key, T>;
   using representation_type = Representation;
   using size_type = size_t;
   using difference_type = ptrdiff_t;
@@ -36,9 +36,9 @@ class flat_map {
   using const_reference = value_type const&;
   using pointer = typename Representation::pointer;
   using const_pointer = typename Representation::const_pointer;
-  using iterator = typename Representation::iterator;
+  using iterator = typename Representation::iterator const;
   using const_iterator = typename Representation::const_iterator;
-  using reverse_iterator = typename Representation::reverse_iterator;
+  using reverse_iterator = typename Representation::reverse_iterator const;
   using const_reverse_iterator = typename Representation::const_reverse_iterator;
 
   class node {
@@ -72,6 +72,9 @@ class flat_map {
 
     Compare const& comp_;
   };
+
+  template <typename Arg>
+  using key_arg_t = typename internal::key_arg<key_type, Arg, Compare>::type;
 
   flat_map() : flat_map(Compare()) {}
 
@@ -227,13 +230,57 @@ class flat_map {
 
   // TODO
 
+  template <typename Mapped>
+  std::pair<iterator, bool> insert_or_assign(Key const& key, Mapped&& mapped) {
+    auto it = std::lower_bound(rep_.begin(), rep_.end(), key, comp_);
+    if (it == rep_.end() || comp_(key, it->first)) {
+      it = insert(key, std::forward<Mapped>(mapped));
+      return {it, true};
+    } else {
+      it->second = std::move(mapped);
+      return {it, false};
+    }
+  }
+
+  template <typename Mapped>
+  std::pair<iterator, bool> insert_or_assign(Key&& key, Mapped&& mapped) {
+    auto it = std::lower_bound(rep_.begin(), rep_.end(), key, comp_);
+    if (it == rep_.end() || comp_(key, it->first)) {
+      it = insert(std::move(key), std::forward<Mapped>(mapped));
+      return {it, true};
+    } else {
+      it->second = std::move(mapped);
+      return {it, false};
+    }
+  }
+
+  template <typename Mapped>
+  iterator insert_or_assign(const_iterator const hint, Key const& key, Mapped&& mapped) {
+    return insert_or_assign(key, std::forward<Mapped>(mapped));
+  }
+
+  template <typename Mapped>
+  iterator insert_or_assign(const_iterator const hint, Key&& key, Mapped&& mapped) {
+    return insert_or_assign(std::move(key), std::forward<Mapped>(mapped));
+  }
+
+  template <typename... Args>
+  std::pair<iterator, bool> emplace(Args&&... args) {
+    return insert(value_type(std::forward<Args>(args)...));
+  }
+
+  template <typename... Args>
+  iterator emplace_hint(const_iterator const hint, Args&&... args) {
+    return emplace(std::forward<Args>(args)...);
+  }
+
   template <typename... Args>
   std::pair<iterator, bool> try_emplace(Key const& key, Args&&... args) {
     value_compare comp{comp_};
     auto it = std::lower_bound(rep_.begin(), rep_.end(), key, comp);
     if (it == rep_.end() || comp(key, it->first)) {
-      it = rep_.emplace(it, value_type(std::piecewise_construct, std::forward_as_tuple(key),
-                                       std::forward_as_tuple(std::forward<Args>(args)...)));
+      it = rep_.emplace(it, std::piecewise_construct, std::forward_as_tuple(key),
+                        std::forward_as_tuple(std::forward<Args>(args)...));
       return std::make_pair(it, true);
     } else {
       return std::make_pair(it, false);
@@ -245,13 +292,59 @@ class flat_map {
     value_compare comp{comp_};
     auto it = std::lower_bound(rep_.begin(), rep_.end(), key, comp);
     if (it == rep_.end() || comp(key, it->first)) {
-      it = rep_.emplace(it,
-                        value_type(std::piecewise_construct, std::forward_as_tuple(std::move(key)),
-                                   std::forward_as_tuple(std::forward<Args>(args)...)));
+      it = rep_.emplace(it, std::piecewise_construct, std::forward_as_tuple(std::move(key)),
+                        std::forward_as_tuple(std::forward<Args>(args)...));
       return std::make_pair(it, true);
     } else {
       return std::make_pair(it, false);
     }
+  }
+
+  template <typename... Args>
+  iterator try_emplace(const_iterator const hint, Key const& key, Args&&... args) {
+    return try_emplace(key, std::forward<Args>(args)...);
+  }
+
+  template <typename... Args>
+  iterator try_emplace(const_iterator const hint, Key&& key, Args&&... args) {
+    return try_emplace(std::move(key), std::forward<Args>(args)...);
+  }
+
+  iterator erase(iterator const pos) { return rep_.erase(pos); }
+  iterator erase(const_iterator const pos) { return rep_.erase(pos); }
+
+  iterator erase(const_iterator const first, const_iterator const last) {
+    return rep_.erase(first, last);
+  }
+
+  template <typename KeyArg = key_type>
+  size_type erase(key_arg_t<KeyArg> const& key) {
+    auto const it = find(key);
+    if (it != end()) {
+      rep_.erase(it);
+      return 1;
+    } else {
+      return 0;
+    }
+  }
+
+  void swap(flat_map& other) noexcept {
+    std::swap(comp_, other.comp_);
+    std::swap(rep_, other.rep_);
+  }
+
+  // TODO
+
+  template <typename KeyArg>
+  size_t count(key_arg_t<KeyArg> const& key) const {
+    return std::binary_search(rep_.begin(), rep_.end(), key, value_compare(comp_));
+  }
+
+  // TODO
+
+  template <typename KeyArg>
+  bool contains(key_arg_t<KeyArg> const& key) const {
+    return std::binary_search(rep_.begin(), rep_.end(), key, value_compare(comp_));
   }
 
   // TODO
@@ -263,5 +356,15 @@ class flat_map {
 
 }  // namespace common
 }  // namespace tsdb2
+
+namespace std {
+
+template <typename Key, typename T, typename Compare, typename Representation>
+void swap(::tsdb2::common::flat_map<Key, T, Compare, Representation>& lhs,
+          ::tsdb2::common::flat_map<Key, T, Compare, Representation>& rhs) {
+  lhs.swap(rhs);
+}
+
+}  // namespace std
 
 #endif  // __TSDB2_COMMON_FLAT_MAP_H__

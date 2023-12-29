@@ -31,7 +31,7 @@ struct TestKey {
   int field;
 };
 
-using TestValue = std::pair<TestKey const, std::string>;
+using TestValue = std::pair<TestKey, std::string>;
 
 struct TestCompare {
   bool operator()(TestKey const& lhs, TestKey const& rhs) const { return lhs.field < rhs.field; }
