@@ -11,6 +11,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/hash/hash.h"
 #include "common/flat_container_testing.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -394,6 +395,22 @@ TYPED_TEST_P(FlatMapWithRepresentationTest, NotEmpty) {
   EXPECT_EQ(fm.size(), 6);
 }
 
+TYPED_TEST_P(FlatMapWithRepresentationTest, Hash) {
+  flat_map<TestKey, std::string, TestCompare, TypeParam> fm1{
+      {-2, "lorem"}, {-3, "ipsum"},      {4, "dolor"},    {-1, "sit"},
+      {-2, "amet"},  {1, "consectetur"}, {5, "adipisci"}, {-3, "elit"},
+  };
+  flat_map<TestKey, std::string, TestCompare, TypeParam> fm2{
+      {-2, "lorem"},      {-3, "ipsum"},   {4, "dolor"}, {-1, "sit"},
+      {1, "consectetur"}, {5, "adipisci"}, {-3, "elit"},
+  };
+  flat_map<TestKey, std::string, TestCompare, TypeParam> fm3{
+      {-3, "ipsum"}, {4, "dolor"}, {-1, "sit"}, {1, "consectetur"}, {5, "adipisci"}, {-3, "elit"},
+  };
+  EXPECT_EQ(absl::HashOf(fm1), absl::HashOf(fm2));
+  EXPECT_NE(absl::HashOf(fm1), absl::HashOf(fm3));
+}
+
 TYPED_TEST_P(FlatMapWithRepresentationTest, Clear) {
   flat_map<TestKey, std::string, TestCompare, TypeParam> fm{
       {-2, "lorem"}, {-3, "ipsum"},      {4, "dolor"},    {-1, "sit"},
@@ -463,7 +480,7 @@ REGISTER_TYPED_TEST_SUITE_P(FlatMapWithRepresentationTest, Construct, ConstructW
                             ConstructWithInitializerList, AssignInitializerList, Deduplication,
                             CompareEqual, CompareLHSLessThanRHS, CompareLHSGreaterThanRHS,
                             ReverseCompareLHSLessThanRHS, ReverseCompareLHSGreaterThanRHS,
-                            CopyConstruct, Copy, MoveConstruct, Move, Empty, NotEmpty, Clear,
+                            CopyConstruct, Copy, MoveConstruct, Move, Empty, NotEmpty, Hash, Clear,
                             Insert, MoveInsert, InsertCollision, MoveInsertCollision);
 
 using RepresentationElement = std::pair<TestKey, std::string>;

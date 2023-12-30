@@ -24,6 +24,11 @@ struct TestKey {
   friend bool operator>(TestKey const& lhs, TestKey const& rhs) { return lhs.field > rhs.field; }
   friend bool operator>=(TestKey const& lhs, TestKey const& rhs) { return lhs.field >= rhs.field; }
 
+  template <typename H>
+  friend H AbslHashValue(H h, TestKey const& key) {
+    return H::combine(std::move(h), key.field);
+  }
+
   int field;
 };
 

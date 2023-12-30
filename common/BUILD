@@ -49,6 +49,7 @@ cc_test(
         ":fixed",
         ":flat_container_testing",
         ":flat_set",
+        "@com_google_absl//absl/hash",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -69,6 +70,7 @@ cc_test(
     deps = [
         ":flat_container_testing",
         ":flat_map",
+        "@com_google_absl//absl/hash",
         "@com_google_googletest//:gtest_main",
     ],
 )

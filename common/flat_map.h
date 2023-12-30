@@ -7,6 +7,7 @@
 #ifndef __TSDB2_COMMON_FLAT_MAP_H__
 #define __TSDB2_COMMON_FLAT_MAP_H__
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -16,6 +17,7 @@
 #include <stdexcept>
 #include <tuple>
 #include <utility>
+#include <vector>
 
 #include "absl/base/attributes.h"
 #include "common/flat_container_internal.h"
@@ -198,6 +200,11 @@ class flat_map {
   bool empty() const noexcept { return rep_.empty(); }
   size_t size() const noexcept { return rep_.size(); }
   size_t max_size() const noexcept { return rep_.max_size(); }
+
+  template <typename H>
+  friend H AbslHashValue(H h, flat_map const& fm) {
+    return H::combine(std::move(h), fm.rep_);
+  }
 
   void clear() noexcept { rep_.clear(); }
 

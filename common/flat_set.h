@@ -151,6 +151,11 @@ class flat_set {
   size_type size() const noexcept { return rep_.size(); }
   size_type max_size() const noexcept { return rep_.max_size(); }
 
+  template <typename H>
+  friend H AbslHashValue(H h, flat_set const& fs) {
+    return H::combine(std::move(h), fs.rep_);
+  }
+
   void clear() noexcept { rep_.clear(); }
 
   std::pair<iterator, bool> insert(value_type const& value) {

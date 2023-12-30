@@ -9,6 +9,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/hash/hash.h"
 #include "common/fixed.h"
 #include "common/flat_container_testing.h"
 #include "gmock/gmock.h"
@@ -276,6 +277,14 @@ TYPED_TEST_P(FlatSetWithRepresentationTest, NotEmpty) {
   EXPECT_FALSE(fs.empty());
   EXPECT_EQ(fs.size(), 6);
 }
+
+TYPED_TEST_P(FlatSetWithRepresentationTest, Hash) {
+  flat_set<TestKey, TestCompare, TypeParam> fs1{-2, -3, 4, -1, -2, 1, 5, -3};
+  flat_set<TestKey, TestCompare, TypeParam> fs2{-2, -3, 4, -1, 1, 5, -3};
+  flat_set<TestKey, TestCompare, TypeParam> fs3{-3, 4, -1, 1, 5, -3};
+  EXPECT_EQ(absl::HashOf(fs1), absl::HashOf(fs2));
+  EXPECT_NE(absl::HashOf(fs1), absl::HashOf(fs3));
+};
 
 TYPED_TEST_P(FlatSetWithRepresentationTest, Clear) {
   flat_set<TestKey, TestCompare, TypeParam> fs{-2, -3, 4, -1, -2, 1, 5, -3};
@@ -598,7 +607,7 @@ REGISTER_TYPED_TEST_SUITE_P(
     FlatSetWithRepresentationTest, Construct, ConstructWithIterators, ConstructWithInitializerList,
     AssignInitializerList, Deduplication, CompareEqual, CompareLHSLessThanRHS,
     CompareLHSGreaterThanRHS, ReverseCompareLHSLessThanRHS, ReverseCompareLHSGreaterThanRHS,
-    CopyConstruct, Copy, MoveConstruct, Move, Empty, NotEmpty, Clear, Insert, MoveInsert,
+    CopyConstruct, Copy, MoveConstruct, Move, Empty, NotEmpty, Hash, Clear, Insert, MoveInsert,
     InsertCollision, MoveInsertCollision, InsertFromIterators, InsertFromInitializerList,
     InsertNode, InsertNodeCollision, InsertEmptyNode, Emplace, EmplaceCollision, EraseIterator,
     EraseRange, EraseKey, EraseNotFound, EraseKeyTransparent, Swap, SwapSpecialization,
