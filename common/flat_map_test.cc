@@ -1,13 +1,15 @@
 #include "common/flat_map.h"
 
+#include <array>
 #include <cstddef>
 #include <deque>
 #include <functional>
 #include <ostream>
 #include <string>
+#include <string_view>
 #include <tuple>
-#include <type_traits>
 #include <utility>
+#include <vector>
 
 #include "common/flat_container_testing.h"
 #include "gmock/gmock.h"
@@ -15,6 +17,8 @@
 
 namespace {
 
+using ::testing::_;
+using ::tsdb2::common::fixed_flat_map_of;
 using ::tsdb2::common::flat_map;
 using ::tsdb2::testing::TestCompare;
 using ::tsdb2::testing::TestKey;
@@ -99,19 +103,15 @@ class TestValuesMatcher<flat_map<Key, Value, Compare, Representation>, KeyMatche
 };
 
 template <typename Representation, typename... Inner>
-TestValuesMatcher<flat_map<TestKey, std::string, TestCompare, Representation>,
-                  std::decay_t<Inner>...>
-TestValuesAre(Inner&&... inner) {
-  return TestValuesMatcher<flat_map<TestKey, std::string, TestCompare, Representation>,
-                           std::decay_t<Inner>...>(std::forward<Inner>(inner)...);
+auto TestValuesAre(Inner&&... inner) {
+  return TestValuesMatcher<flat_map<TestKey, std::string, TestCompare, Representation>, Inner...>(
+      std::forward<Inner>(inner)...);
 }
 
 template <typename Representation, typename... Inner>
-TestValuesMatcher<flat_map<TestKey, std::string, TransparentTestCompare, Representation>,
-                  std::decay_t<Inner>...>
-TransparentTestValuesAre(Inner&&... inner) {
+auto TransparentTestValuesAre(Inner&&... inner) {
   return TestValuesMatcher<flat_map<TestKey, std::string, TransparentTestCompare, Representation>,
-                           std::decay_t<Inner>...>(std::forward<Inner>(inner)...);
+                           Inner...>(std::forward<Inner>(inner)...);
 }
 
 TEST(FlatMapTest, Traits) {
@@ -220,6 +220,80 @@ using RepresentationTypes =
 INSTANTIATE_TYPED_TEST_SUITE_P(FlatMapWithRepresentationTest, FlatMapWithRepresentationTest,
                                RepresentationTypes);
 
-// TODO
+template <typename Key, typename T, typename Compare = std::less<Key>, typename... Inner>
+auto FixedValuesAre(Inner&&... inner) {
+  return TestValuesMatcher<flat_map<Key, T, Compare, std::array<std::pair<Key, T>, 3>>, Inner...>(
+      std::forward<Inner>(inner)...);
+}
+
+TEST(FixedFlatMapTest, ConstructIntKeys) {
+  auto constexpr fm = fixed_flat_map_of<int, std::string_view>({
+      {1, "lorem"},
+      {2, "ipsum"},
+      {3, "dolor"},
+  });
+  EXPECT_THAT(fm, (FixedValuesAre<int, std::string_view>(1, "lorem", 2, "ipsum", 3, "dolor")));
+}
+
+TEST(FixedFlatMapTest, ConstructStringKeys) {
+  auto constexpr fm = fixed_flat_map_of<std::string_view, std::string_view>({
+      {"lorem", "ipsum"},
+      {"dolor", "amet"},
+      {"consectetur", "adipisci"},
+  });
+  EXPECT_THAT(fm, (FixedValuesAre<std::string_view, std::string_view>(
+                      "consectetur", "adipisci", "dolor", "amet", "lorem", "ipsum")));
+}
+
+TEST(FixedFlatMapTest, SortInts) {
+  auto constexpr fm = fixed_flat_map_of<int, std::string_view>({
+      {1, "lorem"},
+      {3, "ipsum"},
+      {2, "dolor"},
+  });
+  EXPECT_THAT(fm, (FixedValuesAre<int, std::string_view>(1, "lorem", 2, "dolor", 3, "ipsum")));
+}
+
+TEST(FixedFlatMapTest, SortIntsReverse) {
+  auto constexpr fm = fixed_flat_map_of<int, std::string_view, std::greater<int>>({
+      {1, "lorem"},
+      {3, "ipsum"},
+      {2, "dolor"},
+  });
+  EXPECT_THAT(fm, (FixedValuesAre<int, std::string_view, std::greater<int>>(3, "ipsum", 2, "dolor",
+                                                                            1, "lorem")));
+}
+
+TEST(FixedFlatMapTest, SortStringsReverse) {
+  auto constexpr fm =
+      fixed_flat_map_of<std::string_view, std::string_view, std::greater<std::string_view>>({
+          {"lorem", "ipsum"},
+          {"dolor", "amet"},
+          {"consectetur", "adipisci"},
+      });
+  EXPECT_THAT(fm,
+              (FixedValuesAre<std::string_view, std::string_view, std::greater<std::string_view>>(
+                  "lorem", "ipsum", "dolor", "amet", "consectetur", "adipisci")));
+}
+
+TEST(FixedFlatSetDeathTest, ConstructIntsWithDuplicates) {
+  EXPECT_DEATH((fixed_flat_map_of<int, std::string_view>({
+                   {1, "lorem"},
+                   {2, "ipsum"},
+                   {1, "dolor"},
+                   {3, "amet"},
+               })),
+               _);
+}
+
+TEST(FixedFlatSetDeathTest, ConstructStringsWithDuplicates) {
+  EXPECT_DEATH((fixed_flat_map_of<std::string_view, std::string_view>({
+                   {"a", "lorem"},
+                   {"b", "ipsum"},
+                   {"a", "dolor"},
+                   {"c", "amet"},
+               })),
+               _);
+}
 
 }  // namespace

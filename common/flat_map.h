@@ -7,6 +7,7 @@
 #ifndef __TSDB2_COMMON_FLAT_MAP_H__
 #define __TSDB2_COMMON_FLAT_MAP_H__
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -18,6 +19,7 @@
 
 #include "absl/base/attributes.h"
 #include "common/flat_container_internal.h"
+#include "common/to_array.h"
 
 namespace tsdb2 {
 namespace common {
@@ -82,16 +84,16 @@ class flat_map {
 
   class value_compare {
    public:
-    explicit value_compare(Compare const& comp) : comp_(comp) {}
+    explicit constexpr value_compare(Compare const& comp) : comp_(comp) {}
 
     template <typename LHS, typename RHS>
-    bool operator()(LHS const& lhs, RHS const& rhs) const {
+    constexpr bool operator()(LHS const& lhs, RHS const& rhs) const {
       return comp_(to_key(lhs), to_key(rhs));
     }
 
    private:
-    static key_type const& to_key(value_type const& value) { return value.first; }
-    static key_type const& to_key(key_type const& key) { return key; }
+    static constexpr key_type const& to_key(value_type const& value) { return value.first; }
+    static constexpr key_type const& to_key(key_type const& key) { return key; }
 
     Compare const& comp_;
   };
@@ -100,6 +102,10 @@ class flat_map {
   using key_arg_t = typename internal::key_arg<key_type, Arg, Compare>::type;
 
   flat_map() : flat_map(Compare()) {}
+
+  explicit constexpr flat_map(SortedDeduplicatedContainer, Representation rep,
+                              Compare const& comp = Compare())
+      : comp_(comp), rep_(std::move(rep)) {}
 
   explicit flat_map(Compare const& comp) : comp_(comp) {}
 
@@ -399,19 +405,85 @@ class flat_map {
     return std::binary_search(rep_.begin(), rep_.end(), key, value_compare(comp_));
   }
 
-  // TODO
+  template <typename KeyArg = key_type>
+  iterator find(key_arg_t<KeyArg> const& key) {
+    auto const it = std::lower_bound(rep_.begin(), rep_.end(), key, comp_);
+    if (it == rep_.end() || comp_(key, it->first)) {
+      return rep_.end();
+    } else {
+      return it;
+    }
+  }
+
+  template <typename KeyArg = key_type>
+  const_iterator find(key_arg_t<KeyArg> const& key) const {
+    auto const it = std::lower_bound(rep_.begin(), rep_.end(), key, comp_);
+    if (it == rep_.end() || comp_(key, it->first)) {
+      return rep_.end();
+    } else {
+      return it;
+    }
+  }
 
   template <typename KeyArg>
   bool contains(key_arg_t<KeyArg> const& key) const {
     return std::binary_search(rep_.begin(), rep_.end(), key, value_compare(comp_));
   }
 
-  // TODO
+  template <typename KeyArg = key_type>
+  std::pair<iterator, iterator> equal_range(key_arg_t<KeyArg> const& key) {
+    return std::equal_range(rep_.begin(), rep_.end(), key, comp_);
+  }
+
+  template <typename KeyArg = key_type>
+  std::pair<const_iterator, const_iterator> equal_range(key_arg_t<KeyArg> const& key) const {
+    return std::equal_range(rep_.begin(), rep_.end(), key, comp_);
+  }
+
+  template <typename KeyArg = key_type>
+  iterator lower_bound(key_arg_t<KeyArg> const& key) {
+    return std::lower_bound(rep_.begin(), rep_.end(), key, comp_);
+  }
+
+  template <typename KeyArg = key_type>
+  const_iterator lower_bound(key_arg_t<KeyArg> const& key) const {
+    return std::lower_bound(rep_.begin(), rep_.end(), key, comp_);
+  }
+
+  template <typename KeyArg = key_type>
+  iterator upper_bound(key_arg_t<KeyArg> const& key) {
+    return std::upper_bound(rep_.begin(), rep_.end(), key, comp_);
+  }
+
+  template <typename KeyArg = key_type>
+  const_iterator upper_bound(key_arg_t<KeyArg> const& key) const {
+    return std::upper_bound(rep_.begin(), rep_.end(), key, comp_);
+  }
+
+  key_compare key_comp() const { return comp_; }
+  value_compare value_comp() const { return value_compare(comp_); }
 
  private:
   ABSL_ATTRIBUTE_NO_UNIQUE_ADDRESS Compare comp_;
   Representation rep_;
 };
+
+template <typename Key, typename T, typename Compare = std::less<Key>, size_t const N>
+constexpr flat_map<Key, T, Compare, std::array<std::pair<Key, T>, N>> fixed_flat_map_of(
+    std::array<std::pair<Key, T>, N> array, Compare&& comp = Compare()) {
+  typename flat_map<Key, T, Compare, std::array<std::pair<Key, T>, N>>::value_compare value_comp{
+      comp};
+  internal::ConstexprSort(array, value_comp);
+  internal::ConstexprCheckDuplications(array, value_comp);
+  return flat_map<Key, T, Compare, std::array<std::pair<Key, T>, N>>(
+      kSortedDeduplicatedContainer, std::move(array), std::forward<Compare>(comp));
+}
+
+template <typename Key, typename T, typename Compare = std::less<Key>, size_t const N>
+constexpr flat_map<Key, T, Compare, std::array<std::pair<Key, T>, N>> fixed_flat_map_of(
+    std::pair<Key, T> const (&values)[N], Compare&& comp = Compare()) {
+  return fixed_flat_map_of<Key, T, Compare, N>(to_array(values), std::forward<Compare>(comp));
+}
 
 }  // namespace common
 }  // namespace tsdb2

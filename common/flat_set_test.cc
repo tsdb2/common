@@ -6,7 +6,6 @@
 #include <functional>
 #include <string_view>
 #include <tuple>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -60,17 +59,15 @@ class TestKeysMatcher<flat_set<Key, Compare, Representation>, Inner...>
 };
 
 template <typename Representation, typename... Inner>
-TestKeysMatcher<flat_set<TestKey, TestCompare, Representation>, std::decay_t<Inner>...> TestKeysAre(
-    Inner&&... inner) {
-  return TestKeysMatcher<flat_set<TestKey, TestCompare, Representation>, std::decay_t<Inner>...>(
+auto TestKeysAre(Inner&&... inner) {
+  return TestKeysMatcher<flat_set<TestKey, TestCompare, Representation>, Inner...>(
       std::forward<Inner>(inner)...);
 }
 
 template <typename Representation, typename... Inner>
-TestKeysMatcher<flat_set<TestKey, TransparentTestCompare, Representation>, std::decay_t<Inner>...>
-TransparentTestKeysAre(Inner&&... inner) {
-  return TestKeysMatcher<flat_set<TestKey, TransparentTestCompare, Representation>,
-                         std::decay_t<Inner>...>(std::forward<Inner>(inner)...);
+auto TransparentTestKeysAre(Inner&&... inner) {
+  return TestKeysMatcher<flat_set<TestKey, TransparentTestCompare, Representation>, Inner...>(
+      std::forward<Inner>(inner)...);
 }
 
 TEST(FlatSetTest, Traits) {

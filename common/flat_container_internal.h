@@ -26,11 +26,24 @@ struct key_arg<KeyType, KeyArg, Compare, std::void_t<typename Compare::is_transp
 };
 
 template <typename T>
-constexpr void ConstexprSwap(T& lhs, T& rhs) {
-  T temp = std::move(lhs);
-  lhs = std::move(rhs);
-  rhs = std::move(temp);
-}
+struct ConstexprHelper;
+
+template <typename T>
+struct ConstexprHelper {
+  static constexpr void Swap(T& lhs, T& rhs) {
+    T temp = static_cast<T&&>(lhs);
+    lhs = static_cast<T&&>(rhs);
+    rhs = static_cast<T&&>(temp);
+  }
+};
+
+template <typename First, typename Second>
+struct ConstexprHelper<std::pair<First, Second>> {
+  static constexpr void Swap(std::pair<First, Second>& lhs, std::pair<First, Second>& rhs) {
+    ConstexprHelper<First>::Swap(lhs.first, rhs.first);
+    ConstexprHelper<Second>::Swap(lhs.second, rhs.second);
+  }
+};
 
 template <typename T, size_t N, typename Compare>
 constexpr void ConstexprSort(std::array<T, N>& array, Compare const& cmp) {
@@ -42,7 +55,7 @@ constexpr void ConstexprSort(std::array<T, N>& array, Compare const& cmp) {
       }
     }
     if (j != i) {
-      ConstexprSwap(array[i], array[j]);
+      ConstexprHelper<T>::Swap(array[i], array[j]);
     }
   }
 }
