@@ -1,6 +1,7 @@
 #include "common/fingerprint.h"
 
 #include <cstdint>
+#include <map>
 #include <optional>
 #include <set>
 #include <string>
