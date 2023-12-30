@@ -26,12 +26,12 @@ constexpr std::array<std::remove_cv_t<T>, N> to_array_impl(T (&&a)[N], std::inde
 }  // namespace detail
 
 template <typename T, size_t N>
-constexpr std::array<std::remove_cv_t<T>, N> to_array(T (&a)[N]) {
+constexpr auto to_array(T (&a)[N]) {  // NOLINT(*-avoid-c-arrays)
   return detail::to_array_impl(a, std::make_index_sequence<N>{});
 }
 
 template <typename T, size_t N>
-constexpr std::array<std::remove_cv_t<T>, N> to_array(T (&&a)[N]) {
+constexpr auto to_array(T (&&a)[N]) {  // NOLINT(*-avoid-c-arrays)
   return detail::to_array_impl(std::move(a), std::make_index_sequence<N>{});
 }
 

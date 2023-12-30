@@ -1,6 +1,8 @@
 #ifndef __TSDB2_COMMON_FIXED_H__
 #define __TSDB2_COMMON_FIXED_H__
 
+#include <utility>
+
 namespace tsdb2 {
 namespace common {
 

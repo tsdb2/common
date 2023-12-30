@@ -337,8 +337,7 @@ class flat_set {
 };
 
 template <typename T, typename Compare = std::less<std::decay_t<T>>, size_t const N>
-constexpr flat_set<T, Compare, std::array<T, N>> fixed_flat_set_of(std::array<T, N> array,
-                                                                   Compare&& comp = Compare()) {
+constexpr auto fixed_flat_set_of(std::array<T, N> array, Compare&& comp = Compare()) {
   internal::ConstexprSort(array, comp);
   internal::ConstexprCheckDuplications(array, comp);
   return flat_set<T, Compare, std::array<T, N>>(kSortedDeduplicatedContainer, std::move(array),
@@ -346,14 +345,13 @@ constexpr flat_set<T, Compare, std::array<T, N>> fixed_flat_set_of(std::array<T,
 }
 
 template <typename T, typename Compare = std::less<std::decay_t<T>>, size_t const N>
-constexpr flat_set<T, Compare, std::array<T, N>> fixed_flat_set_of(T const (&values)[N],
-                                                                   Compare&& comp = Compare()) {
+constexpr auto fixed_flat_set_of(T const (&values)[N],  // NOLINT(*-avoid-c-arrays)
+                                 Compare&& comp = Compare()) {
   return fixed_flat_set_of<T, Compare, N>(to_array(values), std::forward<Compare>(comp));
 }
 
 template <typename Key, typename Compare = std::less<Key>>
-constexpr flat_set<Key, Compare, std::array<Key, 0>> fixed_flat_set_of(
-    internal::EmptyInitializerList, Compare&& comp = Compare()) {
+constexpr auto fixed_flat_set_of(internal::EmptyInitializerList, Compare&& comp = Compare()) {
   return flat_set<Key, Compare, std::array<Key, 0>>(std::forward<Compare>(comp));
 }
 

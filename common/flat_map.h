@@ -476,8 +476,8 @@ class flat_map {
 };
 
 template <typename Key, typename T, typename Compare = std::less<Key>, size_t const N>
-constexpr flat_map<Key, T, Compare, std::array<std::pair<Key, T>, N>> fixed_flat_map_of(
-    std::array<std::pair<Key, T>, N> array, Compare&& comp = Compare()) {
+constexpr auto fixed_flat_map_of(std::array<std::pair<Key, T>, N> array,
+                                 Compare&& comp = Compare()) {
   typename flat_map<Key, T, Compare, std::array<std::pair<Key, T>, N>>::value_compare value_comp{
       comp};
   internal::ConstexprSort(array, value_comp);
@@ -487,14 +487,13 @@ constexpr flat_map<Key, T, Compare, std::array<std::pair<Key, T>, N>> fixed_flat
 }
 
 template <typename Key, typename T, typename Compare = std::less<Key>, size_t const N>
-constexpr flat_map<Key, T, Compare, std::array<std::pair<Key, T>, N>> fixed_flat_map_of(
-    std::pair<Key, T> const (&values)[N], Compare&& comp = Compare()) {
+constexpr auto fixed_flat_map_of(std::pair<Key, T> const (&values)[N],  // NOLINT(*-avoid-c-arrays)
+                                 Compare&& comp = Compare()) {
   return fixed_flat_map_of<Key, T, Compare, N>(to_array(values), std::forward<Compare>(comp));
 }
 
 template <typename Key, typename T, typename Compare = std::less<Key>>
-constexpr flat_map<Key, T, Compare, std::array<std::pair<Key, T>, 0>> fixed_flat_map_of(
-    internal::EmptyInitializerList, Compare&& comp = Compare()) {
+constexpr auto fixed_flat_map_of(internal::EmptyInitializerList, Compare&& comp = Compare()) {
   return flat_map<Key, T, Compare, std::array<std::pair<Key, T>, 0>>(std::forward<Compare>(comp));
 }
 
