@@ -56,6 +56,7 @@
 #include <vector>
 
 #include "absl/types/span.h"
+#include "common/flat_map.h"
 #include "common/flat_set.h"
 
 template <typename State, typename Integer>
@@ -104,14 +105,19 @@ State Tsdb2FingerprintValue(State state, std::string_view const value);
 template <typename State>
 constexpr State Tsdb2FingerprintValue(State state, char const value[]);
 
-template <typename State, typename Inner>
-State Tsdb2FingerprintValue(State state, std::set<Inner> const& value);
+template <typename State, typename Inner, typename Compare>
+State Tsdb2FingerprintValue(State state, std::set<Inner, Compare> const& value);
 
-template <typename State, typename Key, typename Value>
-State Tsdb2FingerprintValue(State state, std::map<Key, Value> const& value);
+template <typename State, typename Key, typename Value, typename Compare>
+State Tsdb2FingerprintValue(State state, std::map<Key, Value, Compare> const& value);
 
-template <typename State, typename Inner>
-State Tsdb2FingerprintValue(State state, ::tsdb2::common::flat_set<Inner> const& value);
+template <typename State, typename Inner, typename Compare, typename Representation>
+State Tsdb2FingerprintValue(State state,
+                            ::tsdb2::common::flat_set<Inner, Compare, Representation> const& value);
+
+template <typename State, typename Key, typename Value, typename Compare, typename Representation>
+State Tsdb2FingerprintValue(
+    State state, ::tsdb2::common::flat_map<Key, Value, Compare, Representation> const& value);
 
 template <typename State, typename Integer>
 constexpr State Tsdb2FingerprintValue(State state, Integer const value,
@@ -232,8 +238,8 @@ constexpr State Tsdb2FingerprintValue(State state, char const value[]) {
   }
 }
 
-template <typename State, typename Inner>
-State Tsdb2FingerprintValue(State state, std::set<Inner> const& value) {
+template <typename State, typename Inner, typename Compare>
+State Tsdb2FingerprintValue(State state, std::set<Inner, Compare> const& value) {
   state.Add(value.size());
   for (auto const& element : value) {
     state = Tsdb2FingerprintValue(std::move(state), element);
@@ -241,8 +247,8 @@ State Tsdb2FingerprintValue(State state, std::set<Inner> const& value) {
   return state;
 }
 
-template <typename State, typename Key, typename Value>
-State Tsdb2FingerprintValue(State state, std::map<Key, Value> const& value) {
+template <typename State, typename Key, typename Value, typename Compare>
+State Tsdb2FingerprintValue(State state, std::map<Key, Value, Compare> const& value) {
   state.Add(value.size());
   for (auto const& [key, value] : value) {
     state = Tsdb2FingerprintValue(std::move(state), key);
@@ -251,11 +257,23 @@ State Tsdb2FingerprintValue(State state, std::map<Key, Value> const& value) {
   return state;
 }
 
-template <typename State, typename Inner>
-State Tsdb2FingerprintValue(State state, ::tsdb2::common::flat_set<Inner> const& value) {
+template <typename State, typename Inner, typename Compare, typename Representation>
+State Tsdb2FingerprintValue(
+    State state, ::tsdb2::common::flat_set<Inner, Compare, Representation> const& value) {
   state.Add(value.size());
   for (auto const& element : value) {
     state = Tsdb2FingerprintValue(std::move(state), element);
+  }
+  return state;
+}
+
+template <typename State, typename Key, typename Value, typename Compare, typename Representation>
+State Tsdb2FingerprintValue(
+    State state, ::tsdb2::common::flat_map<Key, Value, Compare, Representation> const& value) {
+  state.Add(value.size());
+  for (auto const& [key, value] : value) {
+    state = Tsdb2FingerprintValue(std::move(state), key);
+    state = Tsdb2FingerprintValue(std::move(state), value);
   }
   return state;
 }

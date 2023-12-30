@@ -92,6 +92,7 @@ cc_library(
     name = "fingerprint",
     hdrs = ["fingerprint.h"],
     deps = [
+        ":flat_map",
         ":flat_set",
         ":murmur3",
         "@com_google_absl//absl/types:span",

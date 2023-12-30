@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "absl/types/span.h"
+#include "common/flat_map.h"
 #include "common/flat_set.h"
 #include "gtest/gtest.h"
 
@@ -36,6 +37,7 @@ class TestClass {
 namespace {
 
 using ::tsdb2::common::FingerprintOf;
+using ::tsdb2::common::flat_map;
 using ::tsdb2::common::flat_set;
 
 auto constexpr kInt8Fingerprint = FingerprintOf(int8_t{42});
@@ -190,7 +192,35 @@ TEST(FingerprintTest, Sets) {
   EXPECT_EQ(FingerprintOf(s1), FingerprintOf(s4));
 }
 
-// TODO: maps.
+TEST(FingerprintTest, Maps) {
+  std::map<int, std::string> m1{
+      {1, "lorem"},
+      {2, "ipsum"},
+      {3, "dolor"},
+      {4, "amet"},
+  };
+  std::map<int, std::string> m2{
+      {1, "foo"},
+      {2, "bar"},
+      {3, "baz"},
+      {4, "qux"},
+  };
+  std::map<int, std::string> m3{
+      {1, "foo"},
+      {2, "bar"},
+      {3, "baz"},
+  };
+  flat_map<int, std::string> m4{
+      {1, "lorem"},
+      {2, "ipsum"},
+      {3, "dolor"},
+      {4, "amet"},
+  };
+  EXPECT_EQ(FingerprintOf(m1), FingerprintOf(m1));
+  EXPECT_NE(FingerprintOf(m1), FingerprintOf(m2));
+  EXPECT_NE(FingerprintOf(m2), FingerprintOf(m3));
+  EXPECT_EQ(FingerprintOf(m1), FingerprintOf(m4));
+}
 
 TEST(FingerprintTest, CustomObject) {
   ::foo::TestClass value{"foo", 42, true};
