@@ -10,6 +10,15 @@
 namespace tsdb2 {
 namespace common {
 
+// This token is used in overload resolution to select flat container constructors that are
+// initialized with pre-sorted backing containers.
+//
+// Example:
+//
+//   std::vector<int> v{3, 2, 1};
+//   std::sort(v.begin(), v.end());
+//   flat_set<int> fs{kSortedDeduplicatedContainer, std::move(v)};
+//
 struct SortedDeduplicatedContainer {};
 inline SortedDeduplicatedContainer constexpr kSortedDeduplicatedContainer;
 
@@ -25,6 +34,14 @@ struct key_arg<KeyType, KeyArg, Compare, std::void_t<typename Compare::is_transp
   using type = KeyArg;
 };
 
+struct EmptyInitializerList {
+  constexpr EmptyInitializerList() = default;
+};
+
+// This template struct contains a constexpr version of std::swap, needed because std::swap itself
+// is not constexpr until C++20.
+//
+// TODO: remove when migrating to C++20.
 template <typename T>
 struct ConstexprHelper;
 
@@ -37,6 +54,8 @@ struct ConstexprHelper {
   }
 };
 
+// We need an ad hoc specialization for std::pair because std::pair is not constexpr-movable or
+// -copyable until C++20.
 template <typename First, typename Second>
 struct ConstexprHelper<std::pair<First, Second>> {
   static constexpr void Swap(std::pair<First, Second>& lhs, std::pair<First, Second>& rhs) {
@@ -45,6 +64,11 @@ struct ConstexprHelper<std::pair<First, Second>> {
   }
 };
 
+// Constexpr routine to initialize fixed flat containers (cfr. `fixed_flat_*_of`).
+//
+// No need to be super efficient, a simple O(N^2) selection sort will do.
+//
+// TODO: `std::sort` is constexpr in C++20, consider migrating.
 template <typename T, size_t N, typename Compare>
 constexpr void ConstexprSort(std::array<T, N>& array, Compare const& cmp) {
   for (size_t i = 0; i < N - 1; ++i) {
@@ -60,6 +84,8 @@ constexpr void ConstexprSort(std::array<T, N>& array, Compare const& cmp) {
   }
 }
 
+// Aborts the program if a fixed flat container is mistakenly being initialized with duplicate
+// elements.
 template <typename T, size_t N, typename Compare>
 constexpr void ConstexprCheckDuplications(std::array<T, N> const& array, Compare const& cmp) {
   for (size_t i = 1; i < N; ++i) {

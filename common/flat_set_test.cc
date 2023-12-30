@@ -291,6 +291,7 @@ TYPED_TEST_P(FlatSetWithRepresentationTest, Insert) {
   auto const [it, inserted] = fs.insert(value);
   EXPECT_EQ(value, *it);
   EXPECT_TRUE(inserted);
+  EXPECT_THAT(fs, TestKeysAre<TypeParam>(-3, -2, -1, 1, 4, 5, 6));
 }
 
 TYPED_TEST_P(FlatSetWithRepresentationTest, MoveInsert) {
@@ -299,6 +300,7 @@ TYPED_TEST_P(FlatSetWithRepresentationTest, MoveInsert) {
   auto const [it, inserted] = fs.insert(std::move(value));
   EXPECT_EQ(it->field, 6);
   EXPECT_TRUE(inserted);
+  EXPECT_THAT(fs, TestKeysAre<TypeParam>(-3, -2, -1, 1, 4, 5, 6));
 }
 
 TYPED_TEST_P(FlatSetWithRepresentationTest, InsertCollision) {
@@ -307,6 +309,7 @@ TYPED_TEST_P(FlatSetWithRepresentationTest, InsertCollision) {
   auto const [it, inserted] = fs.insert(value);
   EXPECT_EQ(value, *it);
   EXPECT_FALSE(inserted);
+  EXPECT_THAT(fs, TestKeysAre<TypeParam>(-3, -2, -1, 1, 4, 5));
 }
 
 TYPED_TEST_P(FlatSetWithRepresentationTest, MoveInsertCollision) {
@@ -315,6 +318,7 @@ TYPED_TEST_P(FlatSetWithRepresentationTest, MoveInsertCollision) {
   auto const [it, inserted] = fs.insert(std::move(value));
   EXPECT_EQ(it->field, 5);
   EXPECT_FALSE(inserted);
+  EXPECT_THAT(fs, TestKeysAre<TypeParam>(-3, -2, -1, 1, 4, 5));
 }
 
 TYPED_TEST_P(FlatSetWithRepresentationTest, InsertFromIterators) {
@@ -607,6 +611,11 @@ REGISTER_TYPED_TEST_SUITE_P(
 using RepresentationTypes = ::testing::Types<std::vector<TestKey>, std::deque<TestKey>>;
 INSTANTIATE_TYPED_TEST_SUITE_P(FlatSetWithRepresentationTest, FlatSetWithRepresentationTest,
                                RepresentationTypes);
+
+TEST(FixedFlatSetTest, Empty) {
+  auto constexpr fs = fixed_flat_set_of<int>({});
+  EXPECT_TRUE(fs.empty());
+}
 
 TEST(FixedFlatSetTest, ConstructInts) {
   auto constexpr fs = fixed_flat_set_of({1, 2, 3});

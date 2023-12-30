@@ -82,13 +82,13 @@ class flat_set {
   template <typename Arg>
   using key_arg_t = typename internal::key_arg<key_type, Arg, Compare>::type;
 
-  flat_set() : flat_set(Compare()) {}
+  constexpr flat_set() : flat_set(Compare()) {}
 
   explicit constexpr flat_set(SortedDeduplicatedContainer, Representation rep,
                               Compare const& comp = Compare())
       : comp_(comp), rep_(std::move(rep)) {}
 
-  explicit flat_set(Compare const& comp) : comp_(comp) {}
+  explicit constexpr flat_set(Compare const& comp) : comp_(comp) {}
 
   template <typename InputIt>
   explicit flat_set(InputIt first, InputIt last, Compare const& comp = Compare()) : comp_(comp) {
@@ -344,6 +344,12 @@ template <typename T, typename Compare = std::less<std::decay_t<T>>, size_t cons
 constexpr flat_set<T, Compare, std::array<T, N>> fixed_flat_set_of(T const (&values)[N],
                                                                    Compare&& comp = Compare()) {
   return fixed_flat_set_of<T, Compare, N>(to_array(values), std::forward<Compare>(comp));
+}
+
+template <typename Key, typename Compare = std::less<Key>>
+constexpr flat_set<Key, Compare, std::array<Key, 0>> fixed_flat_set_of(
+    internal::EmptyInitializerList, Compare&& comp = Compare()) {
+  return flat_set<Key, Compare, std::array<Key, 0>>(std::forward<Compare>(comp));
 }
 
 }  // namespace common

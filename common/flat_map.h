@@ -101,13 +101,13 @@ class flat_map {
   template <typename Arg>
   using key_arg_t = typename internal::key_arg<key_type, Arg, Compare>::type;
 
-  flat_map() : flat_map(Compare()) {}
+  constexpr flat_map() : flat_map(Compare()) {}
 
   explicit constexpr flat_map(SortedDeduplicatedContainer, Representation rep,
                               Compare const& comp = Compare())
       : comp_(comp), rep_(std::move(rep)) {}
 
-  explicit flat_map(Compare const& comp) : comp_(comp) {}
+  explicit constexpr flat_map(Compare const& comp) : comp_(comp) {}
 
   template <class InputIt>
   flat_map(InputIt first, InputIt last, Compare const& comp = Compare()) {
@@ -483,6 +483,12 @@ template <typename Key, typename T, typename Compare = std::less<Key>, size_t co
 constexpr flat_map<Key, T, Compare, std::array<std::pair<Key, T>, N>> fixed_flat_map_of(
     std::pair<Key, T> const (&values)[N], Compare&& comp = Compare()) {
   return fixed_flat_map_of<Key, T, Compare, N>(to_array(values), std::forward<Compare>(comp));
+}
+
+template <typename Key, typename T, typename Compare = std::less<Key>>
+constexpr flat_map<Key, T, Compare, std::array<std::pair<Key, T>, 0>> fixed_flat_map_of(
+    internal::EmptyInitializerList, Compare&& comp = Compare()) {
+  return flat_map<Key, T, Compare, std::array<std::pair<Key, T>, 0>>(std::forward<Compare>(comp));
 }
 
 }  // namespace common
