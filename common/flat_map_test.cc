@@ -117,7 +117,9 @@ TransparentTestValuesAre(Inner&&... inner) {
 TEST(FlatMapTest, Traits) {
   using flat_map = flat_map<TestKey, std::string, TestCompare, TestValueRepresentation>;
   EXPECT_TRUE((std::is_same_v<typename flat_map::key_type, TestKey>));
+  EXPECT_TRUE((std::is_same_v<typename flat_map::node_type::key_type, TestKey>));
   EXPECT_TRUE((std::is_same_v<typename flat_map::mapped_type, std::string>));
+  EXPECT_TRUE((std::is_same_v<typename flat_map::node_type::mapped_type, std::string>));
   EXPECT_TRUE((std::is_same_v<typename flat_map::value_type, TestValue>));
   EXPECT_TRUE((std::is_same_v<typename flat_map::representation_type, TestValueRepresentation>));
   EXPECT_TRUE((std::is_same_v<typename flat_map::size_type, size_t>));
@@ -140,7 +142,9 @@ TEST(FlatMapTest, Traits) {
 TEST(FlatMapTest, DefaultRepresentation) {
   using flat_map = flat_map<TestKey, std::string, TestCompare>;
   EXPECT_TRUE((std::is_same_v<typename flat_map::key_type, TestKey>));
+  EXPECT_TRUE((std::is_same_v<typename flat_map::node_type::key_type, TestKey>));
   EXPECT_TRUE((std::is_same_v<typename flat_map::mapped_type, std::string>));
+  EXPECT_TRUE((std::is_same_v<typename flat_map::node_type::mapped_type, std::string>));
   EXPECT_TRUE((std::is_same_v<typename flat_map::value_type, TestValue>));
   EXPECT_TRUE((std::is_same_v<typename flat_map::representation_type, std::vector<TestValue>>));
   EXPECT_TRUE((std::is_same_v<typename flat_map::size_type, size_t>));
@@ -163,7 +167,9 @@ TEST(FlatMapTest, DefaultRepresentation) {
 TEST(FlatMapTest, DefaultComparator) {
   using flat_map = flat_map<TestKey, std::string>;
   EXPECT_TRUE((std::is_same_v<typename flat_map::key_type, TestKey>));
+  EXPECT_TRUE((std::is_same_v<typename flat_map::node_type::key_type, TestKey>));
   EXPECT_TRUE((std::is_same_v<typename flat_map::mapped_type, std::string>));
+  EXPECT_TRUE((std::is_same_v<typename flat_map::node_type::mapped_type, std::string>));
   EXPECT_TRUE((std::is_same_v<typename flat_map::value_type, TestValue>));
   EXPECT_TRUE((std::is_same_v<typename flat_map::representation_type, std::vector<TestValue>>));
   EXPECT_TRUE((std::is_same_v<typename flat_map::size_type, size_t>));
@@ -189,6 +195,13 @@ class FlatMapWithRepresentationTest : public ::testing::Test {};
 TYPED_TEST_SUITE_P(FlatMapWithRepresentationTest);
 
 TYPED_TEST_P(FlatMapWithRepresentationTest, Construct) {
+  flat_map<TestKey, std::string, TestCompare, TypeParam> fm1{TestCompare()};
+  EXPECT_THAT(fm1, TestValuesAre<TypeParam>());
+  flat_map<TestKey, std::string, TestCompare, TypeParam> fm2;
+  EXPECT_THAT(fm2, TestValuesAre<TypeParam>());
+}
+
+TYPED_TEST_P(FlatMapWithRepresentationTest, ConstructWithInitializerList) {
   flat_map<TestKey, std::string, TestCompare, TypeParam> fm{
       {-2, "lorem"}, {-3, "ipsum"},      {4, "dolor"},    {-1, "sit"},
       {-2, "amet"},  {1, "consectetur"}, {5, "adipisci"}, {-3, "elit"},
@@ -199,7 +212,7 @@ TYPED_TEST_P(FlatMapWithRepresentationTest, Construct) {
 
 // TODO
 
-REGISTER_TYPED_TEST_SUITE_P(FlatMapWithRepresentationTest, Construct);
+REGISTER_TYPED_TEST_SUITE_P(FlatMapWithRepresentationTest, Construct, ConstructWithInitializerList);
 
 using RepresentationElement = std::pair<TestKey, std::string>;
 using RepresentationTypes =

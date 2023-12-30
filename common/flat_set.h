@@ -32,18 +32,19 @@ class flat_set {
  public:
   class node {
    public:
-    constexpr node() : value_(std::nullopt) {}
-    explicit node(Key&& value) : value_(std::move(value)) {}
+    using value_type = Key;
 
-    node(node&& other) noexcept = default;
-    node& operator=(node&& other) noexcept = default;
+    constexpr node() noexcept : value_(std::nullopt) {}
+    explicit node(value_type&& value) : value_(std::move(value)) {}
+
+    node(node&&) noexcept = default;
+    node& operator=(node&&) noexcept = default;
 
     bool empty() const noexcept { return !value_.has_value(); }
     explicit operator bool() const noexcept { return value_.has_value(); }
 
-    Key& value() & { return *value_; }
-    Key const& value() const& { return *value_; }
-    Key&& value() && { return *std::move(value_); }
+    value_type& value() const& { return const_cast<value_type&>(*value_); }
+    value_type&& value() && { return *std::move(value_); }
 
     void swap(node& other) noexcept { value_.swap(other.value_); }
     friend void swap(node& lhs, node& rhs) noexcept { lhs.swap(rhs); }
@@ -52,7 +53,7 @@ class flat_set {
     node(node const&) = delete;
     node& operator=(node const&) = delete;
 
-    std::optional<Key> value_;
+    std::optional<value_type> value_;
   };
 
   using key_type = Key;
@@ -258,7 +259,9 @@ class flat_set {
 
   // TODO: merge methods.
 
-  [[nodiscard]] Representation&& ExtractRep() && { return std::move(rep_); }
+  Representation const& rep() const { return rep_; }
+
+  Representation&& ExtractRep() && { return std::move(rep_); }
 
   template <typename KeyArg = key_type>
   size_type count(key_arg_t<KeyArg> const& key) const {

@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <functional>
 #include <initializer_list>
+#include <optional>
 #include <stdexcept>
 #include <tuple>
 #include <utility>
@@ -43,10 +44,32 @@ class flat_map {
 
   class node {
    public:
-    // TODO
+    using key_type = Key;
+    using mapped_type = T;
+
+    constexpr node() noexcept : value_(std::nullopt) {}
+    explicit node(value_type&& value) : value_(std::move(value)) {}
+
+    node(node&&) noexcept = default;
+    node& operator=(node&&) noexcept = default;
+
+    bool empty() const noexcept { return !value_.has_value(); }
+    explicit operator bool() const noexcept { return value_.has_value(); }
+
+    key_type& key() const { return const_cast<key_type&>(value_->first); }
+    mapped_type& mapped() const { return const_cast<mapped_type&>(value_->second); }
+
+    value_type& value() const& { return const_cast<value_type&>(*value_); }
+    value_type&& value() && { return *std::move(value_); }
+
+    void swap(node& other) noexcept { value_.swap(other.value_); }
+    friend void swap(node& lhs, node& rhs) noexcept { lhs.swap(rhs); }
 
    private:
-    value_type value;
+    node(node const&) = delete;
+    node& operator=(node const&) = delete;
+
+    std::optional<value_type> value_;
   };
 
   using node_type = node;
@@ -228,7 +251,23 @@ class flat_map {
     }
   }
 
-  // TODO
+  insert_return_type insert(node_type&& node) {
+    if (node) {
+      auto [it, inserted] = insert(std::move(node).value());
+      if (inserted) {
+        return {it, true};
+      } else {
+        return {it, false, std::move(node)};
+      }
+    } else {
+      return {rep_.end(), false, std::move(node)};
+    }
+  }
+
+  iterator insert(const_iterator pos, node_type&& node) {
+    auto [it, unused_inserted, unused_node] = insert(std::move(node));
+    return it;
+  }
 
   template <typename Mapped>
   std::pair<iterator, bool> insert_or_assign(Key const& key, Mapped&& mapped) {
@@ -333,7 +372,27 @@ class flat_map {
     std::swap(rep_, other.rep_);
   }
 
-  // TODO
+  node_type extract(iterator position) {
+    node_type node{std::move(*position)};
+    rep_.erase(position);
+    return node;
+  }
+
+  template <typename KeyArg = key_type>
+  node_type extract(key_arg_t<KeyArg> const& key) {
+    auto it = find(key);
+    if (it != end()) {
+      return extract(it);
+    } else {
+      return {};
+    }
+  }
+
+  // TODO: merge methods.
+
+  Representation const& rep() const { return rep_; }
+
+  Representation&& ExtractRep() && { return std::move(rep_); }
 
   template <typename KeyArg>
   size_t count(key_arg_t<KeyArg> const& key) const {

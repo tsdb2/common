@@ -77,6 +77,7 @@ TEST(FlatSetTest, Traits) {
   using flat_set = flat_set<TestKey, TestCompare, TestRepresentation>;
   EXPECT_TRUE((std::is_same_v<typename flat_set::key_type, TestKey>));
   EXPECT_TRUE((std::is_same_v<typename flat_set::value_type, TestKey>));
+  EXPECT_TRUE((std::is_same_v<typename flat_set::node::value_type, TestKey>));
   EXPECT_TRUE((std::is_same_v<typename flat_set::representation_type, std::deque<TestKey>>));
   EXPECT_TRUE((std::is_same_v<typename flat_set::size_type, size_t>));
   EXPECT_TRUE((std::is_same_v<typename flat_set::difference_type, ptrdiff_t>));
@@ -100,6 +101,7 @@ TEST(FlatSetTest, DefaultRepresentation) {
   using flat_set = flat_set<TestKey, TestCompare>;
   EXPECT_TRUE((std::is_same_v<typename flat_set::key_type, TestKey>));
   EXPECT_TRUE((std::is_same_v<typename flat_set::value_type, TestKey>));
+  EXPECT_TRUE((std::is_same_v<typename flat_set::node::value_type, TestKey>));
   EXPECT_TRUE((std::is_same_v<typename flat_set::representation_type, std::vector<TestKey>>));
   EXPECT_TRUE((std::is_same_v<typename flat_set::size_type, size_t>));
   EXPECT_TRUE((std::is_same_v<typename flat_set::difference_type, ptrdiff_t>));
@@ -123,6 +125,7 @@ TEST(FlatSetTest, DefaultComparator) {
   using flat_set = flat_set<TestKey>;
   EXPECT_TRUE((std::is_same_v<typename flat_set::key_type, TestKey>));
   EXPECT_TRUE((std::is_same_v<typename flat_set::value_type, TestKey>));
+  EXPECT_TRUE((std::is_same_v<typename flat_set::node::value_type, TestKey>));
   EXPECT_TRUE((std::is_same_v<typename flat_set::representation_type, std::vector<TestKey>>));
   EXPECT_TRUE((std::is_same_v<typename flat_set::size_type, size_t>));
   EXPECT_TRUE((std::is_same_v<typename flat_set::difference_type, ptrdiff_t>));
@@ -461,6 +464,12 @@ TYPED_TEST_P(FlatSetWithRepresentationTest, ExtractKeyTransparent) {
   EXPECT_THAT(fs, TransparentTestKeysAre<TypeParam>(-3, -2, 1, 4, 5));
 }
 
+TYPED_TEST_P(FlatSetWithRepresentationTest, Representation) {
+  flat_set<TestKey, TestCompare, TypeParam> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  auto const& rep = fs.rep();
+  EXPECT_THAT(rep, ElementsAre(-3, -2, -1, 1, 4, 5));
+}
+
 TYPED_TEST_P(FlatSetWithRepresentationTest, ExtractRep) {
   flat_set<TestKey, TestCompare, TypeParam> fs{-2, -3, 4, -1, -2, 1, 5, -3};
   auto const rep = std::move(fs).ExtractRep();
@@ -592,11 +601,11 @@ REGISTER_TYPED_TEST_SUITE_P(
     InsertCollision, MoveInsertCollision, InsertFromIterators, InsertFromInitializerList,
     InsertNode, InsertNodeCollision, InsertEmptyNode, Emplace, EmplaceCollision, EraseIterator,
     EraseRange, EraseKey, EraseNotFound, EraseKeyTransparent, Swap, SwapSpecialization,
-    ExtractIterator, ExtractKey, ExtractMissing, ExtractKeyTransparent, ExtractRep, Count, Find,
-    FindTransparent, FindMissing, ConstFind, ConstFindTransparent, ConstFindMissing, Contains,
-    ContainsTransparent, ContainsMissing, EqualRange, ConstEqualRange, LowerBoundExclusive,
-    ConstLowerBoundExclusive, LowerBoundInclusive, ConstLowerBoundInclusive, UpperBoundExclusive,
-    ConstUpperBoundExclusive, UpperBoundInclusive, ConstUpperBoundInclusive);
+    ExtractIterator, ExtractKey, ExtractMissing, ExtractKeyTransparent, Representation, ExtractRep,
+    Count, Find, FindTransparent, FindMissing, ConstFind, ConstFindTransparent, ConstFindMissing,
+    Contains, ContainsTransparent, ContainsMissing, EqualRange, ConstEqualRange,
+    LowerBoundExclusive, ConstLowerBoundExclusive, LowerBoundInclusive, ConstLowerBoundInclusive,
+    UpperBoundExclusive, ConstUpperBoundExclusive, UpperBoundInclusive, ConstUpperBoundInclusive);
 
 using RepresentationTypes = ::testing::Types<std::vector<TestKey>, std::deque<TestKey>>;
 INSTANTIATE_TYPED_TEST_SUITE_P(FlatSetWithRepresentationTest, FlatSetWithRepresentationTest,
