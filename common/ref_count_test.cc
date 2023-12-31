@@ -2,11 +2,13 @@
 
 #include <memory>
 
+#include "common/reffed_ptr.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace {
 
+using ::tsdb2::common::MakeReffed;
 using ::tsdb2::common::RefCount;
 using ::tsdb2::common::RefCounted;
 using ::tsdb2::common::SimpleRefCounted;
@@ -75,7 +77,7 @@ class SimpleRefCountedTest : public ::testing::Test {
   bool flag_ = false;
 };
 
-TEST_F(SimpleRefCountedTest, RefUnref) {
+TEST_F(SimpleRefCountedTest, UniquePtr) {
   {
     auto rc = std::make_unique<TestSimpleRefCounted>(&flag_);
     EXPECT_FALSE(flag_);
@@ -83,9 +85,17 @@ TEST_F(SimpleRefCountedTest, RefUnref) {
   EXPECT_TRUE(flag_);
 }
 
+TEST_F(SimpleRefCountedTest, RefUnref) {
+  {
+    auto rc = MakeReffed<TestSimpleRefCounted>(&flag_);
+    EXPECT_FALSE(flag_);
+  }
+  EXPECT_TRUE(flag_);
+}
+
 TEST_F(SimpleRefCountedTest, RefRefUnrefUnref) {
   {
-    auto rc1 = std::make_shared<TestSimpleRefCounted>(&flag_);
+    auto rc1 = MakeReffed<TestSimpleRefCounted>(&flag_);
     {
       auto rc2 = rc1;
       EXPECT_FALSE(flag_);
