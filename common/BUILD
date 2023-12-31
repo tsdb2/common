@@ -113,20 +113,6 @@ cc_test(
 )
 
 cc_library(
-    name = "reffed_ptr",
-    hdrs = ["reffed_ptr.h"],
-)
-
-cc_test(
-    name = "reffed_ptr_test",
-    srcs = ["reffed_ptr_test.cc"],
-    deps = [
-        ":reffed_ptr",
-        "@com_google_googletest//:gtest_main",
-    ],
-)
-
-cc_library(
     name = "ref_count",
     hdrs = ["ref_count.h"],
     deps = [
@@ -139,6 +125,19 @@ cc_test(
     srcs = ["ref_count_test.cc"],
     deps = [
         ":ref_count",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "reffed_ptr",
+    hdrs = ["reffed_ptr.h"],
+)
+
+cc_test(
+    name = "reffed_ptr_test",
+    srcs = ["reffed_ptr_test.cc"],
+    deps = [
         ":reffed_ptr",
         "@com_google_googletest//:gtest_main",
     ],
