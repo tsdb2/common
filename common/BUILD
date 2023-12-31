@@ -127,6 +127,24 @@ cc_test(
 )
 
 cc_library(
+    name = "ref_count",
+    hdrs = ["ref_count.h"],
+    deps = [
+        "@com_google_absl//absl/log:check",
+    ],
+)
+
+cc_test(
+    name = "ref_count_test",
+    srcs = ["ref_count_test.cc"],
+    deps = [
+        ":ref_count",
+        ":reffed_ptr",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "sequence_number",
     hdrs = ["sequence_number.h"],
 )
