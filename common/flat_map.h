@@ -3,6 +3,12 @@
 // for read-mostly use cases and/or small-ish data structures. In those cases, being allocated in a
 // single heap block makes the data much more cache-friendly and efficient. For any uses cases with
 // large (but still read-mostly) datasets, you may want to use std::deque instead of std::vector.
+//
+// NOTE: `flat_map` is not fully compliant with `std::map` because the elements of the underlying
+// container must be mutable pairs (otherwise reallocations wouldn't be possible) but the API must
+// disallow changing the keys, so all `flat_map` iterators are always constant. Modifications to the
+// mapped values are still possible by other means, e.g. the subscript operator, `insert_or_assign`,
+// etc.
 
 #ifndef __TSDB2_COMMON_FLAT_MAP_H__
 #define __TSDB2_COMMON_FLAT_MAP_H__
@@ -84,12 +90,24 @@ class flat_map {
     node_type node;
   };
 
-  template <typename Arg>
-  using key_arg_t = typename internal::key_arg<Compare>::template type<key_type, Arg>;
-
   class value_compare {
    public:
     explicit constexpr value_compare(Compare const& comp) : comp_(comp) {}
+
+    constexpr bool operator()(value_type const& lhs, value_type const& rhs) const {
+      return comp_(lhs.first, rhs.first);
+    }
+
+   private:
+    Compare const& comp_;
+  };
+
+  template <typename Arg>
+  using key_arg_t = typename internal::key_arg<Compare>::template type<key_type, Arg>;
+
+  class generic_compare {
+   public:
+    explicit constexpr generic_compare(Compare const& comp) : comp_(comp) {}
 
     template <typename LHS, typename RHS>
     constexpr bool operator()(LHS&& lhs, RHS&& rhs) const {
@@ -150,7 +168,7 @@ class flat_map {
 
   friend bool operator<(flat_map const& lhs, flat_map const& rhs) {
     return std::lexicographical_compare(lhs.begin(), lhs.end(), rhs.begin(), rhs.end(),
-                                        value_compare(lhs.comp_));
+                                        generic_compare(lhs.comp_));
   }
 
   friend bool operator<=(flat_map const& lhs, flat_map const& rhs) { return !(rhs < lhs); }
@@ -213,7 +231,7 @@ class flat_map {
   void clear() noexcept { rep_.clear(); }
 
   std::pair<iterator, bool> insert(value_type const& value) {
-    value_compare comp{comp_};
+    generic_compare comp{comp_};
     auto it = std::lower_bound(rep_.begin(), rep_.end(), value, comp);
     if (it == rep_.end() || comp(value, *it)) {
       it = rep_.insert(it, value);
@@ -229,7 +247,7 @@ class flat_map {
   }
 
   std::pair<iterator, bool> insert(value_type&& value) {
-    value_compare comp{comp_};
+    generic_compare comp{comp_};
     auto it = std::lower_bound(rep_.begin(), rep_.end(), value, comp);
     if (it == rep_.end() || comp(value, *it)) {
       it = rep_.insert(it, std::move(value));
@@ -288,7 +306,7 @@ class flat_map {
 
   template <typename Mapped>
   std::pair<iterator, bool> insert_or_assign(Key const& key, Mapped&& mapped) {
-    value_compare comp{comp_};
+    generic_compare comp{comp_};
     auto it = std::lower_bound(rep_.begin(), rep_.end(), key, comp);
     if (it == rep_.end() || comp(key, it->first)) {
       return insert(value_type(key, std::forward<Mapped>(mapped)));
@@ -300,7 +318,7 @@ class flat_map {
 
   template <typename Mapped>
   std::pair<iterator, bool> insert_or_assign(Key&& key, Mapped&& mapped) {
-    value_compare comp{comp_};
+    generic_compare comp{comp_};
     auto it = std::lower_bound(rep_.begin(), rep_.end(), key, comp);
     if (it == rep_.end() || comp(key, it->first)) {
       return insert(value_type(std::move(key), std::forward<Mapped>(mapped)));
@@ -333,7 +351,7 @@ class flat_map {
 
   template <typename... Args>
   std::pair<iterator, bool> try_emplace(Key const& key, Args&&... args) {
-    value_compare comp{comp_};
+    generic_compare comp{comp_};
     auto it = std::lower_bound(rep_.begin(), rep_.end(), key, comp);
     if (it == rep_.end() || comp(key, it->first)) {
       it = rep_.emplace(it, std::piecewise_construct, std::forward_as_tuple(key),
@@ -346,7 +364,7 @@ class flat_map {
 
   template <typename... Args>
   std::pair<iterator, bool> try_emplace(Key&& key, Args&&... args) {
-    value_compare comp{comp_};
+    generic_compare comp{comp_};
     auto it = std::lower_bound(rep_.begin(), rep_.end(), key, comp);
     if (it == rep_.end() || comp(key, it->first)) {
       it = rep_.emplace(it, std::piecewise_construct, std::forward_as_tuple(std::move(key)),
@@ -416,12 +434,12 @@ class flat_map {
 
   template <typename KeyArg = key_type>
   size_t count(key_arg_t<KeyArg> const& key) const {
-    return std::binary_search(rep_.begin(), rep_.end(), key, value_compare(comp_));
+    return std::binary_search(rep_.begin(), rep_.end(), key, generic_compare(comp_));
   }
 
   template <typename KeyArg = key_type>
   iterator find(key_arg_t<KeyArg> const& key) {
-    value_compare comp{comp_};
+    generic_compare comp{comp_};
     auto const it = std::lower_bound(rep_.begin(), rep_.end(), key, comp);
     if (it == rep_.end() || comp(key, it->first)) {
       return rep_.end();
@@ -432,7 +450,7 @@ class flat_map {
 
   template <typename KeyArg = key_type>
   const_iterator find(key_arg_t<KeyArg> const& key) const {
-    value_compare comp{comp_};
+    generic_compare comp{comp_};
     auto const it = std::lower_bound(rep_.begin(), rep_.end(), key, comp);
     if (it == rep_.end() || comp(key, it->first)) {
       return rep_.end();
@@ -443,37 +461,37 @@ class flat_map {
 
   template <typename KeyArg = key_type>
   bool contains(key_arg_t<KeyArg> const& key) const {
-    return std::binary_search(rep_.begin(), rep_.end(), key, value_compare(comp_));
+    return std::binary_search(rep_.begin(), rep_.end(), key, generic_compare(comp_));
   }
 
   template <typename KeyArg = key_type>
   std::pair<iterator, iterator> equal_range(key_arg_t<KeyArg> const& key) {
-    return std::equal_range(rep_.begin(), rep_.end(), key, value_compare(comp_));
+    return std::equal_range(rep_.begin(), rep_.end(), key, generic_compare(comp_));
   }
 
   template <typename KeyArg = key_type>
   std::pair<const_iterator, const_iterator> equal_range(key_arg_t<KeyArg> const& key) const {
-    return std::equal_range(rep_.begin(), rep_.end(), key, value_compare(comp_));
+    return std::equal_range(rep_.begin(), rep_.end(), key, generic_compare(comp_));
   }
 
   template <typename KeyArg = key_type>
   iterator lower_bound(key_arg_t<KeyArg> const& key) {
-    return std::lower_bound(rep_.begin(), rep_.end(), key, value_compare(comp_));
+    return std::lower_bound(rep_.begin(), rep_.end(), key, generic_compare(comp_));
   }
 
   template <typename KeyArg = key_type>
   const_iterator lower_bound(key_arg_t<KeyArg> const& key) const {
-    return std::lower_bound(rep_.begin(), rep_.end(), key, value_compare(comp_));
+    return std::lower_bound(rep_.begin(), rep_.end(), key, generic_compare(comp_));
   }
 
   template <typename KeyArg = key_type>
   iterator upper_bound(key_arg_t<KeyArg> const& key) {
-    return std::upper_bound(rep_.begin(), rep_.end(), key, value_compare(comp_));
+    return std::upper_bound(rep_.begin(), rep_.end(), key, generic_compare(comp_));
   }
 
   template <typename KeyArg = key_type>
   const_iterator upper_bound(key_arg_t<KeyArg> const& key) const {
-    return std::upper_bound(rep_.begin(), rep_.end(), key, value_compare(comp_));
+    return std::upper_bound(rep_.begin(), rep_.end(), key, generic_compare(comp_));
   }
 
   key_compare key_comp() const { return comp_; }
@@ -487,10 +505,10 @@ class flat_map {
 template <typename Key, typename T, typename Compare = std::less<Key>, size_t const N>
 constexpr auto fixed_flat_map_of(std::array<std::pair<Key, T>, N> array,
                                  Compare&& comp = Compare()) {
-  typename flat_map<Key, T, Compare, std::array<std::pair<Key, T>, N>>::value_compare value_comp{
+  typename flat_map<Key, T, Compare, std::array<std::pair<Key, T>, N>>::generic_compare gen_comp{
       comp};
-  internal::ConstexprSort(array, value_comp);
-  internal::ConstexprCheckDuplications(array, value_comp);
+  internal::ConstexprSort(array, gen_comp);
+  internal::ConstexprCheckDuplications(array, gen_comp);
   return flat_map<Key, T, Compare, std::array<std::pair<Key, T>, N>>(
       kSortedDeduplicatedContainer, std::move(array), std::forward<Compare>(comp));
 }
