@@ -898,7 +898,182 @@ TYPED_TEST_P(FlatMapWithRepresentationTest, Count) {
   EXPECT_EQ(fm.count(OtherTestKey{6}), 0);
 }
 
-// TODO
+TYPED_TEST_P(FlatMapWithRepresentationTest, Find) {
+  flat_map<TestKey, std::string, TestCompare, TypeParam> fm{
+      {-2, "lorem"}, {-3, "ipsum"},      {4, "dolor"},    {-1, "sit"},
+      {-2, "amet"},  {1, "consectetur"}, {5, "adipisci"}, {-3, "elit"},
+  };
+  auto const it = fm.find(TestKey{4});
+  EXPECT_THAT(*it, Pair(4, "dolor"));
+}
+
+TYPED_TEST_P(FlatMapWithRepresentationTest, FindTransparent) {
+  flat_map<TestKey, std::string, TransparentTestCompare, TypeParam> fm{
+      {-2, "lorem"}, {-3, "ipsum"},      {4, "dolor"},    {-1, "sit"},
+      {-2, "amet"},  {1, "consectetur"}, {5, "adipisci"}, {-3, "elit"},
+  };
+  auto const it = fm.find(OtherTestKey{4});
+  EXPECT_THAT(*it, Pair(4, "dolor"));
+}
+
+TYPED_TEST_P(FlatMapWithRepresentationTest, FindMissing) {
+  flat_map<TestKey, std::string, TestCompare, TypeParam> fm{
+      {-2, "lorem"}, {-3, "ipsum"},      {4, "dolor"},    {-1, "sit"},
+      {-2, "amet"},  {1, "consectetur"}, {5, "adipisci"}, {-3, "elit"},
+  };
+  auto const it = fm.find(TestKey{7});
+  EXPECT_EQ(it, fm.end());
+}
+
+TYPED_TEST_P(FlatMapWithRepresentationTest, ConstFind) {
+  flat_map<TestKey, std::string, TestCompare, TypeParam> const fm{
+      {-2, "lorem"}, {-3, "ipsum"},      {4, "dolor"},    {-1, "sit"},
+      {-2, "amet"},  {1, "consectetur"}, {5, "adipisci"}, {-3, "elit"},
+  };
+  auto const it = fm.find(TestKey{4});
+  EXPECT_THAT(*it, Pair(4, "dolor"));
+}
+
+TYPED_TEST_P(FlatMapWithRepresentationTest, ConstFindTransparent) {
+  flat_map<TestKey, std::string, TransparentTestCompare, TypeParam> const fm{
+      {-2, "lorem"}, {-3, "ipsum"},      {4, "dolor"},    {-1, "sit"},
+      {-2, "amet"},  {1, "consectetur"}, {5, "adipisci"}, {-3, "elit"},
+  };
+  auto const it = fm.find(OtherTestKey{4});
+  EXPECT_THAT(*it, Pair(4, "dolor"));
+}
+
+TYPED_TEST_P(FlatMapWithRepresentationTest, ConstFindMissing) {
+  flat_map<TestKey, std::string, TestCompare, TypeParam> const fm{
+      {-2, "lorem"}, {-3, "ipsum"},      {4, "dolor"},    {-1, "sit"},
+      {-2, "amet"},  {1, "consectetur"}, {5, "adipisci"}, {-3, "elit"},
+  };
+  auto const it = fm.find(TestKey{7});
+  EXPECT_EQ(it, fm.end());
+}
+
+TYPED_TEST_P(FlatMapWithRepresentationTest, Contains) {
+  flat_map<TestKey, std::string, TestCompare, TypeParam> const fm{
+      {-2, "lorem"}, {-3, "ipsum"},      {4, "dolor"},    {-1, "sit"},
+      {-2, "amet"},  {1, "consectetur"}, {5, "adipisci"}, {-3, "elit"},
+  };
+  EXPECT_TRUE(fm.contains(TestKey{4}));
+}
+
+TYPED_TEST_P(FlatMapWithRepresentationTest, ContainsTransparent) {
+  flat_map<TestKey, std::string, TransparentTestCompare, TypeParam> const fm{
+      {-2, "lorem"}, {-3, "ipsum"},      {4, "dolor"},    {-1, "sit"},
+      {-2, "amet"},  {1, "consectetur"}, {5, "adipisci"}, {-3, "elit"},
+  };
+  EXPECT_TRUE(fm.contains(OtherTestKey{4}));
+}
+
+TYPED_TEST_P(FlatMapWithRepresentationTest, ContainsMissing) {
+  flat_map<TestKey, std::string, TestCompare, TypeParam> const fm{
+      {-2, "lorem"}, {-3, "ipsum"},      {4, "dolor"},    {-1, "sit"},
+      {-2, "amet"},  {1, "consectetur"}, {5, "adipisci"}, {-3, "elit"},
+  };
+  EXPECT_FALSE(fm.contains(TestKey{7}));
+}
+
+TYPED_TEST_P(FlatMapWithRepresentationTest, EqualRange) {
+  flat_map<TestKey, std::string, TestCompare, TypeParam> fm{
+      {-2, "lorem"}, {-3, "ipsum"},      {4, "dolor"},    {-1, "sit"},
+      {-2, "amet"},  {1, "consectetur"}, {5, "adipisci"}, {-3, "elit"},
+  };
+  auto const it = fm.find(TestKey(1));
+  EXPECT_THAT(fm.equal_range(TestKey(1)), Pair(it, it + 1));
+}
+
+TYPED_TEST_P(FlatMapWithRepresentationTest, TransparentEqualRange) {
+  flat_map<TestKey, std::string, TransparentTestCompare, TypeParam> fm{
+      {-2, "lorem"}, {-3, "ipsum"},      {4, "dolor"},    {-1, "sit"},
+      {-2, "amet"},  {1, "consectetur"}, {5, "adipisci"}, {-3, "elit"},
+  };
+  auto const it = fm.find(TestKey(1));
+  EXPECT_THAT(fm.equal_range(OtherTestKey(1)), Pair(it, it + 1));
+}
+
+TYPED_TEST_P(FlatMapWithRepresentationTest, ConstEqualRange) {
+  flat_map<TestKey, std::string, TestCompare, TypeParam> const fm{
+      {-2, "lorem"}, {-3, "ipsum"},      {4, "dolor"},    {-1, "sit"},
+      {-2, "amet"},  {1, "consectetur"}, {5, "adipisci"}, {-3, "elit"},
+  };
+  auto const it = fm.find(TestKey(1));
+  EXPECT_THAT(fm.equal_range(TestKey(1)), Pair(it, it + 1));
+}
+
+TYPED_TEST_P(FlatMapWithRepresentationTest, LowerBoundExclusive) {
+  flat_map<TestKey, std::string, TestCompare, TypeParam> fm{
+      {-2, "lorem"}, {-3, "ipsum"},      {4, "dolor"},    {-1, "sit"},
+      {-2, "amet"},  {1, "consectetur"}, {5, "adipisci"}, {-3, "elit"},
+  };
+  auto const it = fm.lower_bound(TestKey(0));
+  EXPECT_THAT(*it, Pair(1, "consectetur"));
+}
+
+TYPED_TEST_P(FlatMapWithRepresentationTest, ConstLowerBoundExclusive) {
+  flat_map<TestKey, std::string, TestCompare, TypeParam> const fm{
+      {-2, "lorem"}, {-3, "ipsum"},      {4, "dolor"},    {-1, "sit"},
+      {-2, "amet"},  {1, "consectetur"}, {5, "adipisci"}, {-3, "elit"},
+  };
+  auto const it = fm.lower_bound(TestKey(0));
+  EXPECT_THAT(*it, Pair(1, "consectetur"));
+}
+
+TYPED_TEST_P(FlatMapWithRepresentationTest, LowerBoundInclusive) {
+  flat_map<TestKey, std::string, TestCompare, TypeParam> fm{
+      {-2, "lorem"}, {-3, "ipsum"},      {4, "dolor"},    {-1, "sit"},
+      {-2, "amet"},  {1, "consectetur"}, {5, "adipisci"}, {-3, "elit"},
+  };
+  auto const it = fm.lower_bound(TestKey(1));
+  EXPECT_THAT(*it, Pair(1, "consectetur"));
+}
+
+TYPED_TEST_P(FlatMapWithRepresentationTest, ConstLowerBoundInclusive) {
+  flat_map<TestKey, std::string, TestCompare, TypeParam> const fm{
+      {-2, "lorem"}, {-3, "ipsum"},      {4, "dolor"},    {-1, "sit"},
+      {-2, "amet"},  {1, "consectetur"}, {5, "adipisci"}, {-3, "elit"},
+  };
+  auto const it = fm.lower_bound(TestKey(1));
+  EXPECT_THAT(*it, Pair(1, "consectetur"));
+}
+
+TYPED_TEST_P(FlatMapWithRepresentationTest, UpperBoundExclusive) {
+  flat_map<TestKey, std::string, TestCompare, TypeParam> fm{
+      {-2, "lorem"}, {-3, "ipsum"},      {4, "dolor"},    {-1, "sit"},
+      {-2, "amet"},  {1, "consectetur"}, {5, "adipisci"}, {-3, "elit"},
+  };
+  auto const it = fm.upper_bound(TestKey(0));
+  EXPECT_THAT(*it, Pair(1, "consectetur"));
+}
+
+TYPED_TEST_P(FlatMapWithRepresentationTest, ConstUpperBoundExclusive) {
+  flat_map<TestKey, std::string, TestCompare, TypeParam> const fm{
+      {-2, "lorem"}, {-3, "ipsum"},      {4, "dolor"},    {-1, "sit"},
+      {-2, "amet"},  {1, "consectetur"}, {5, "adipisci"}, {-3, "elit"},
+  };
+  auto const it = fm.upper_bound(TestKey(0));
+  EXPECT_THAT(*it, Pair(1, "consectetur"));
+}
+
+TYPED_TEST_P(FlatMapWithRepresentationTest, UpperBoundInclusive) {
+  flat_map<TestKey, std::string, TestCompare, TypeParam> fm{
+      {-2, "lorem"}, {-3, "ipsum"},      {4, "dolor"},    {-1, "sit"},
+      {-2, "amet"},  {1, "consectetur"}, {5, "adipisci"}, {-3, "elit"},
+  };
+  auto const it = fm.upper_bound(TestKey(1));
+  EXPECT_THAT(*it, Pair(4, "dolor"));
+}
+
+TYPED_TEST_P(FlatMapWithRepresentationTest, ConstUpperBoundInclusive) {
+  flat_map<TestKey, std::string, TestCompare, TypeParam> const fm{
+      {-2, "lorem"}, {-3, "ipsum"},      {4, "dolor"},    {-1, "sit"},
+      {-2, "amet"},  {1, "consectetur"}, {5, "adipisci"}, {-3, "elit"},
+  };
+  auto const it = fm.upper_bound(TestKey(1));
+  EXPECT_THAT(*it, Pair(4, "dolor"));
+}
 
 REGISTER_TYPED_TEST_SUITE_P(
     FlatMapWithRepresentationTest, Construct, ConstructWithIterators, ConstructWithInitializerList,
@@ -912,7 +1087,11 @@ REGISTER_TYPED_TEST_SUITE_P(
     EmplaceHint, EmplaceHintCollision, TryEmplace, TryEmplaceCollision, TryEmplaceHint,
     TryEmplaceHintCollision, EraseIterator, EraseRange, EraseKey, EraseNotFound,
     EraseKeyTransparent, Swap, SwapSpecialization, ExtractIterator, ExtractKey, ExtractMissing,
-    ExtractKeyTransparent, Representation, ExtractRep, Count);
+    ExtractKeyTransparent, Representation, ExtractRep, Count, Find, FindTransparent, FindMissing,
+    ConstFind, ConstFindTransparent, ConstFindMissing, Contains, ContainsTransparent,
+    ContainsMissing, EqualRange, TransparentEqualRange, ConstEqualRange, LowerBoundExclusive,
+    ConstLowerBoundExclusive, LowerBoundInclusive, ConstLowerBoundInclusive, UpperBoundExclusive,
+    ConstUpperBoundExclusive, UpperBoundInclusive, ConstUpperBoundInclusive);
 
 using RepresentationElement = std::pair<TestKey, std::string>;
 using RepresentationTypes =

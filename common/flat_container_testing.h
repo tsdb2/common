@@ -33,7 +33,7 @@ struct TestKey {
 };
 
 struct OtherTestKey {
-  OtherTestKey(int const field_value) : field(field_value) {}
+  explicit OtherTestKey(int const field_value) : field(field_value) {}
   int field;
 };
 

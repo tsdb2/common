@@ -441,39 +441,39 @@ class flat_map {
     }
   }
 
-  template <typename KeyArg>
+  template <typename KeyArg = key_type>
   bool contains(key_arg_t<KeyArg> const& key) const {
     return std::binary_search(rep_.begin(), rep_.end(), key, value_compare(comp_));
   }
 
   template <typename KeyArg = key_type>
   std::pair<iterator, iterator> equal_range(key_arg_t<KeyArg> const& key) {
-    return std::equal_range(rep_.begin(), rep_.end(), key, comp_);
+    return std::equal_range(rep_.begin(), rep_.end(), key, value_compare(comp_));
   }
 
   template <typename KeyArg = key_type>
   std::pair<const_iterator, const_iterator> equal_range(key_arg_t<KeyArg> const& key) const {
-    return std::equal_range(rep_.begin(), rep_.end(), key, comp_);
+    return std::equal_range(rep_.begin(), rep_.end(), key, value_compare(comp_));
   }
 
   template <typename KeyArg = key_type>
   iterator lower_bound(key_arg_t<KeyArg> const& key) {
-    return std::lower_bound(rep_.begin(), rep_.end(), key, comp_);
+    return std::lower_bound(rep_.begin(), rep_.end(), key, value_compare(comp_));
   }
 
   template <typename KeyArg = key_type>
   const_iterator lower_bound(key_arg_t<KeyArg> const& key) const {
-    return std::lower_bound(rep_.begin(), rep_.end(), key, comp_);
+    return std::lower_bound(rep_.begin(), rep_.end(), key, value_compare(comp_));
   }
 
   template <typename KeyArg = key_type>
   iterator upper_bound(key_arg_t<KeyArg> const& key) {
-    return std::upper_bound(rep_.begin(), rep_.end(), key, comp_);
+    return std::upper_bound(rep_.begin(), rep_.end(), key, value_compare(comp_));
   }
 
   template <typename KeyArg = key_type>
   const_iterator upper_bound(key_arg_t<KeyArg> const& key) const {
-    return std::upper_bound(rep_.begin(), rep_.end(), key, comp_);
+    return std::upper_bound(rep_.begin(), rep_.end(), key, value_compare(comp_));
   }
 
   key_compare key_comp() const { return comp_; }

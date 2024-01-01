@@ -550,6 +550,12 @@ TYPED_TEST_P(FlatSetWithRepresentationTest, EqualRange) {
   EXPECT_THAT(fs.equal_range(TestKey(1)), Pair(it, it + 1));
 }
 
+TYPED_TEST_P(FlatSetWithRepresentationTest, TransparentEqualRange) {
+  flat_set<TestKey, TransparentTestCompare, TypeParam> fs{-2, -3, 4, -1, -2, 1, 5, -3};
+  auto const it = fs.find(TestKey(1));
+  EXPECT_THAT(fs.equal_range(OtherTestKey(1)), Pair(it, it + 1));
+}
+
 TYPED_TEST_P(FlatSetWithRepresentationTest, ConstEqualRange) {
   flat_set<TestKey, TestCompare, TypeParam> const fs{-2, -3, 4, -1, -2, 1, 5, -3};
   auto const it = fs.find(TestKey(1));
@@ -614,9 +620,10 @@ REGISTER_TYPED_TEST_SUITE_P(
     EraseRange, EraseKey, EraseNotFound, EraseKeyTransparent, Swap, SwapSpecialization,
     ExtractIterator, ExtractKey, ExtractMissing, ExtractKeyTransparent, Representation, ExtractRep,
     Count, Find, FindTransparent, FindMissing, ConstFind, ConstFindTransparent, ConstFindMissing,
-    Contains, ContainsTransparent, ContainsMissing, EqualRange, ConstEqualRange,
-    LowerBoundExclusive, ConstLowerBoundExclusive, LowerBoundInclusive, ConstLowerBoundInclusive,
-    UpperBoundExclusive, ConstUpperBoundExclusive, UpperBoundInclusive, ConstUpperBoundInclusive);
+    Contains, ContainsTransparent, ContainsMissing, EqualRange, TransparentEqualRange,
+    ConstEqualRange, LowerBoundExclusive, ConstLowerBoundExclusive, LowerBoundInclusive,
+    ConstLowerBoundInclusive, UpperBoundExclusive, ConstUpperBoundExclusive, UpperBoundInclusive,
+    ConstUpperBoundInclusive);
 
 using RepresentationTypes = ::testing::Types<std::vector<TestKey>, std::deque<TestKey>>;
 INSTANTIATE_TYPED_TEST_SUITE_P(FlatSetWithRepresentationTest, FlatSetWithRepresentationTest,
