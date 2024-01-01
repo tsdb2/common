@@ -39,7 +39,7 @@ bool MockClock::AwaitWithTimeout(absl::Mutex* const mutex, absl::Condition const
 bool MockClock::AwaitWithDeadline(absl::Mutex* const mutex, absl::Condition const& condition,
                                   absl::Time const deadline) const {
   absl::Time current_time = TimeNow();
-  auto listener = [&](absl::Time const new_time) ABSL_LOCKS_EXCLUDED(mutex) {
+  auto listener = [mutex, &current_time](absl::Time const new_time) ABSL_LOCKS_EXCLUDED(mutex) {
     absl::MutexLock lock{mutex};
     current_time = new_time;
   };

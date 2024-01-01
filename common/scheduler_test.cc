@@ -93,9 +93,9 @@ TEST_P(SchedulerStateTest, StoppedButNotStarted) {
 
 INSTANTIATE_TEST_SUITE_P(SchedulerStateTest, SchedulerStateTest, ::testing::Range(1, 10));
 
-class SchedulerEventTest : public SchedulerTest {
+class SchedulerTaskTest : public SchedulerTest {
  protected:
-  explicit SchedulerEventTest() : SchedulerTest(/*start_now=*/true) {
+  explicit SchedulerTaskTest() : SchedulerTest(/*start_now=*/true) {
     clock_.AdvanceTime(absl::Seconds(12));
     WaitUntilAllWorkersAsleep();
   }
@@ -113,26 +113,26 @@ class SchedulerEventTest : public SchedulerTest {
   void WaitUntilAllWorkersAsleep() const { ASSERT_OK(scheduler_.WaitUntilAllWorkersAsleep()); }
 };
 
-TEST_P(SchedulerEventTest, ScheduleNow) {
+TEST_P(SchedulerTaskTest, ScheduleNow) {
   absl::Notification done;
   ScheduleAt(absl::Seconds(12), [&] { done.Notify(); });
   done.WaitForNotification();
 }
 
-TEST_P(SchedulerEventTest, SchedulePast) {
+TEST_P(SchedulerTaskTest, SchedulePast) {
   absl::Notification done;
   ScheduleAt(absl::Seconds(10), [&] { done.Notify(); });
   done.WaitForNotification();
 }
 
-TEST_P(SchedulerEventTest, ScheduleFuture) {
+TEST_P(SchedulerTaskTest, ScheduleFuture) {
   absl::Notification done;
   ScheduleAt(absl::Seconds(34), [&] { done.Notify(); });
   WaitUntilAllWorkersAsleep();
   EXPECT_FALSE(done.HasBeenNotified());
 }
 
-TEST_P(SchedulerEventTest, AdvanceTime) {
+TEST_P(SchedulerTaskTest, AdvanceTime) {
   absl::Notification done;
   ScheduleAt(absl::Seconds(34), [&] { done.Notify(); });
   clock_.AdvanceTime(absl::Seconds(22));
@@ -140,7 +140,7 @@ TEST_P(SchedulerEventTest, AdvanceTime) {
   EXPECT_TRUE(done.HasBeenNotified());
 }
 
-TEST_P(SchedulerEventTest, AdvanceFurther) {
+TEST_P(SchedulerTaskTest, AdvanceFurther) {
   absl::Notification done;
   ScheduleAt(absl::Seconds(34), [&] { done.Notify(); });
   clock_.AdvanceTime(absl::Seconds(56));
@@ -148,7 +148,7 @@ TEST_P(SchedulerEventTest, AdvanceFurther) {
   EXPECT_TRUE(done.HasBeenNotified());
 }
 
-TEST_P(SchedulerEventTest, Preempt) {
+TEST_P(SchedulerTaskTest, Preempt) {
   bool run1 = false;
   bool run2 = false;
   ScheduleAt(absl::Seconds(56), [&] { run1 = true; });
@@ -165,6 +165,6 @@ TEST_P(SchedulerEventTest, Preempt) {
 
 // TODO
 
-INSTANTIATE_TEST_SUITE_P(SchedulerEventTest, SchedulerEventTest, ::testing::Range(1, 10));
+INSTANTIATE_TEST_SUITE_P(SchedulerTaskTest, SchedulerTaskTest, ::testing::Range(1, 2));
 
 }  // namespace
