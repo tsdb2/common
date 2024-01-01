@@ -55,7 +55,8 @@ class RefCounted {
   std::atomic<intptr_t> ref_count_ = 0;
 };
 
-// Simple `RefCounted` implementation that runs `delete this` on the last unref.
+// Simple `RefCounted` implementation that runs `delete this` on the last unref. `SimpleRefCounted`
+// objects MUST be allocated on the heap.
 class SimpleRefCounted : public RefCounted {
  protected:
   void OnLastUnref() override { delete this; }
