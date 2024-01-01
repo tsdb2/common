@@ -35,10 +35,10 @@ class MockClock : public Clock {
   void SleepUntil(absl::Time wakeup_time) const override ABSL_LOCKS_EXCLUDED(mutex_);
 
   bool AwaitWithTimeout(absl::Mutex* mutex, absl::Condition const& condition,
-                        absl::Duration timeout) const override;
+                        absl::Duration timeout) const override ABSL_SHARED_LOCKS_REQUIRED(mutex);
 
   bool AwaitWithDeadline(absl::Mutex* mutex, absl::Condition const& condition,
-                         absl::Time deadline) const override;
+                         absl::Time deadline) const override ABSL_SHARED_LOCKS_REQUIRED(mutex);
 
   // Sets the fake time to the specified value. Checkfails if `time` is not greater than or equal to
   // the current fake time.

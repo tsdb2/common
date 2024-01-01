@@ -72,6 +72,88 @@ class Scheduler {
 
   static Handle constexpr kInvalidHandle = 0;
 
+  // Scoped object to manage a scheduled task. Blocking cancellation of the task is performed
+  // automatically by the `~ScopedHandle` destructor, and it's a no-op if the task has already run
+  // or has already been cancelled.
+  //
+  // ScopedHandles are movable and they may be in an empty state, in which case they are no-ops.
+  //
+  // Non-empty ScopedHandle objects cannot be constructed directly by the user. They are returned by
+  // `ScheduleScoped*` methods of the parent `Scheduler`.
+  class ScopedHandle final {
+   public:
+    // Constructs an empty ScopedHandle.
+    explicit ScopedHandle() : scheduler_(nullptr), handle_(kInvalidHandle) {}
+
+    // If the ScopedHandle is not empty, the destructor automatically performs blocking cancellation
+    // of the managed task.
+    ~ScopedHandle() {
+      if (scheduler_) {
+        scheduler_->BlockingCancel(handle_);
+      }
+    }
+
+    ScopedHandle(ScopedHandle &&other) noexcept
+        : scheduler_(other.scheduler_), handle_(other.handle_) {
+      other.scheduler_ = nullptr;
+      other.handle_ = kInvalidHandle;
+    }
+
+    ScopedHandle &operator=(ScopedHandle &&other) noexcept {
+      if (scheduler_) {
+        scheduler_->BlockingCancel(handle_);
+      }
+      scheduler_ = other.scheduler_;
+      handle_ = other.handle_;
+      other.scheduler_ = nullptr;
+      other.handle_ = kInvalidHandle;
+      return *this;
+    }
+
+    bool empty() const { return scheduler_ == nullptr; }
+    explicit operator bool() const { return scheduler_ != nullptr; }
+
+    // Releases ownership of the wrapped task handle and returns it. The ScopedHandle object becomes
+    // empty. If the ScopedObject is already empty it remains empty and `Scheduler::kInvalidHandle`
+    // is returned.
+    Handle Release() {
+      auto const handle = handle_;
+      scheduler_ = nullptr;
+      handle_ = kInvalidHandle;
+      return handle;
+    }
+
+    // Triggers non-blocking cancellation of the managed task and empties this ScopedHandle.
+    void Cancel() {
+      if (scheduler_) {
+        scheduler_->Cancel(Release());
+      }
+    }
+
+    // Triggers blocking cancellation of the managed task and empties this ScopedHandle. Usually you
+    // don't need to call this method because the `~ScopedHandle` destructor does it for you.
+    //
+    // WARNING: calling this method inside the callback of a task scheduled in the `Scheduler` will
+    // cause a deadlock.
+    void BlockingCancel() {
+      if (scheduler_) {
+        scheduler_->BlockingCancel(Release());
+      }
+    }
+
+   private:
+    friend class Scheduler;
+
+    explicit ScopedHandle(Scheduler *const scheduler, Handle const handle)
+        : scheduler_(scheduler), handle_(handle) {}
+
+    ScopedHandle(ScopedHandle const &) = delete;
+    ScopedHandle &operator=(ScopedHandle const &) = delete;
+
+    Scheduler *scheduler_;
+    Handle handle_;
+  };
+
   explicit Scheduler(Options options)
       : options_(std::move(options)),
         clock_(options_.clock ? options_.clock : RealClock::GetInstance()) {
@@ -138,6 +220,38 @@ class Scheduler {
   Handle ScheduleRecurringIn(Callback callback, absl::Duration const delay,
                              absl::Duration const period) {
     return ScheduleInternal(std::move(callback), clock_->TimeNow() + delay, period);
+  }
+
+  // Like `ScheduleNow` but returns a `ScopedHandle`.
+  ScopedHandle ScheduleScopedNow(Callback callback) {
+    return ScopedHandle(this, ScheduleNow(std::move(callback)));
+  }
+
+  // Like `ScheduleAt` but returns a `ScopedHandle`.
+  ScopedHandle ScheduleScopedAt(Callback callback, absl::Time const due_time) {
+    return ScopedHandle(this, ScheduleAt(std::move(callback), due_time));
+  }
+
+  // Like `ScheduleIn` but returns a `ScopedHandle`.
+  ScopedHandle ScheduleScopedIn(Callback callback, absl::Duration const delay) {
+    return ScopedHandle(this, ScheduleIn(std::move(callback), delay));
+  }
+
+  // Like `ScheduleRecurring` but returns a `ScopedHandle`.
+  ScopedHandle ScheduleScopedRecurring(Callback callback, absl::Duration const period) {
+    return ScopedHandle(this, ScheduleRecurring(std::move(callback), period));
+  }
+
+  // Like `ScheduleRecurringAt` but returns a `ScopedHandle`.
+  ScopedHandle ScheduleScopedRecurringAt(Callback callback, absl::Time const due_time,
+                                         absl::Duration const period) {
+    return ScopedHandle(this, ScheduleRecurringAt(std::move(callback), due_time, period));
+  }
+
+  // Like `ScheduleRecurringIn` but returns a `ScopedHandle`.
+  ScopedHandle ScheduleScopedRecurringIn(Callback callback, absl::Duration const delay,
+                                         absl::Duration const period) {
+    return ScopedHandle(this, ScheduleRecurringIn(std::move(callback), delay, period));
   }
 
   // Cancels the task with the specified handle. Does nothing if the handle is invalid for any

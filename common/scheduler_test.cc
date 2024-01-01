@@ -1,5 +1,6 @@
 #include "common/scheduler.h"
 
+#include <atomic>
 #include <cstdint>
 #include <utility>
 
@@ -163,8 +164,40 @@ TEST_P(SchedulerTaskTest, Preempt) {
   EXPECT_TRUE(run2);
 }
 
+TEST_P(SchedulerTaskTest, ParallelRun) {
+  bool run1 = false;
+  bool run2 = false;
+  ScheduleAt(absl::Seconds(34), [&] { run1 = true; });
+  ScheduleAt(absl::Seconds(56), [&] { run2 = true; });
+  clock_.AdvanceTime(absl::Seconds(50));
+  WaitUntilAllWorkersAsleep();
+  EXPECT_TRUE(run1);
+  EXPECT_TRUE(run2);
+}
+
+TEST_P(SchedulerTaskTest, ParallelRunPreempted) {
+  bool run1 = false;
+  bool run2 = false;
+  ScheduleAt(absl::Seconds(56), [&] { run1 = true; });
+  ScheduleAt(absl::Seconds(34), [&] { run2 = true; });
+  clock_.AdvanceTime(absl::Seconds(50));
+  WaitUntilAllWorkersAsleep();
+  EXPECT_TRUE(run1);
+  EXPECT_TRUE(run2);
+}
+
+TEST_P(SchedulerTaskTest, PreemptNPlusTwo) {
+  std::atomic<int> run{0};
+  for (int i = GetParam() + 2; i > 0; --i) {
+    ScheduleAt(absl::Seconds(34) * i, [&] { run.fetch_add(1, std::memory_order_relaxed); });
+  }
+  clock_.AdvanceTime(absl::Seconds(34) * (GetParam() + 2));
+  WaitUntilAllWorkersAsleep();
+  EXPECT_EQ(run, GetParam() + 2);
+}
+
 // TODO
 
-INSTANTIATE_TEST_SUITE_P(SchedulerTaskTest, SchedulerTaskTest, ::testing::Range(1, 2));
+INSTANTIATE_TEST_SUITE_P(SchedulerTaskTest, SchedulerTaskTest, ::testing::Range(1, 10));
 
 }  // namespace
