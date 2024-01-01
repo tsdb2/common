@@ -80,7 +80,7 @@ class flat_set {
   };
 
   template <typename Arg>
-  using key_arg_t = typename internal::key_arg<key_type, Arg, Compare>::type;
+  using key_arg_t = typename internal::key_arg<Compare>::template type<key_type, Arg>;
 
   constexpr flat_set() : flat_set(Compare()) {}
 

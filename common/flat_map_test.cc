@@ -19,9 +19,11 @@
 namespace {
 
 using ::testing::_;
+using ::testing::ElementsAre;
 using ::testing::Pair;
 using ::tsdb2::common::fixed_flat_map_of;
 using ::tsdb2::common::flat_map;
+using ::tsdb2::testing::OtherTestKey;
 using ::tsdb2::testing::ReverseTestCompare;
 using ::tsdb2::testing::TestCompare;
 using ::tsdb2::testing::TestKey;
@@ -751,21 +753,166 @@ TYPED_TEST_P(FlatMapWithRepresentationTest, EraseRange) {
               TestValuesAre<TypeParam>(-3, "ipsum", 1, "consectetur", 4, "dolor", 5, "adipisci"));
 }
 
+TYPED_TEST_P(FlatMapWithRepresentationTest, EraseKey) {
+  flat_map<TestKey, std::string, TestCompare, TypeParam> fm{
+      {-2, "lorem"}, {-3, "ipsum"},      {4, "dolor"},    {-1, "sit"},
+      {-2, "amet"},  {1, "consectetur"}, {5, "adipisci"}, {-3, "elit"},
+  };
+  EXPECT_EQ(fm.erase(TestKey(1)), 1);
+  EXPECT_THAT(
+      fm, TestValuesAre<TypeParam>(-3, "ipsum", -2, "lorem", -1, "sit", 4, "dolor", 5, "adipisci"));
+}
+
+TYPED_TEST_P(FlatMapWithRepresentationTest, EraseNotFound) {
+  flat_map<TestKey, std::string, TestCompare, TypeParam> fm{
+      {-2, "lorem"}, {-3, "ipsum"},      {4, "dolor"},    {-1, "sit"},
+      {-2, "amet"},  {1, "consectetur"}, {5, "adipisci"}, {-3, "elit"},
+  };
+  EXPECT_EQ(fm.erase(TestKey(7)), 0);
+  EXPECT_THAT(fm, TestValuesAre<TypeParam>(-3, "ipsum", -2, "lorem", -1, "sit", 1, "consectetur", 4,
+                                           "dolor", 5, "adipisci"));
+}
+
+TYPED_TEST_P(FlatMapWithRepresentationTest, EraseKeyTransparent) {
+  flat_map<TestKey, std::string, TransparentTestCompare, TypeParam> fm{
+      {-2, "lorem"}, {-3, "ipsum"},      {4, "dolor"},    {-1, "sit"},
+      {-2, "amet"},  {1, "consectetur"}, {5, "adipisci"}, {-3, "elit"},
+  };
+  EXPECT_EQ(fm.erase(OtherTestKey{1}), 1);
+  EXPECT_THAT(fm, TransparentTestValuesAre<TypeParam>(-3, "ipsum", -2, "lorem", -1, "sit", 4,
+                                                      "dolor", 5, "adipisci"));
+}
+
+TYPED_TEST_P(FlatMapWithRepresentationTest, Swap) {
+  flat_map<TestKey, std::string, TestCompare, TypeParam> fm1{
+      {-2, "lorem"}, {-3, "ipsum"},      {4, "dolor"},    {-1, "sit"},
+      {-2, "amet"},  {1, "consectetur"}, {5, "adipisci"}, {-3, "elit"},
+  };
+  flat_map<TestKey, std::string, TestCompare, TypeParam> fm2{
+      {2, "lorem"}, {3, "ipsum"},        {-4, "dolor"},    {1, "sit"},
+      {2, "amet"},  {-1, "consectetur"}, {-5, "adipisci"}, {3, "elit"},
+  };
+  fm1.swap(fm2);
+  EXPECT_THAT(fm1, TestValuesAre<TypeParam>(-5, "adipisci", -4, "dolor", -1, "consectetur", 1,
+                                            "sit", 2, "lorem", 3, "ipsum"));
+  EXPECT_THAT(fm2, TestValuesAre<TypeParam>(-3, "ipsum", -2, "lorem", -1, "sit", 1, "consectetur",
+                                            4, "dolor", 5, "adipisci"));
+}
+
+TYPED_TEST_P(FlatMapWithRepresentationTest, SwapSpecialization) {
+  flat_map<TestKey, std::string, TestCompare, TypeParam> fm1{
+      {-2, "lorem"}, {-3, "ipsum"},      {4, "dolor"},    {-1, "sit"},
+      {-2, "amet"},  {1, "consectetur"}, {5, "adipisci"}, {-3, "elit"},
+  };
+  flat_map<TestKey, std::string, TestCompare, TypeParam> fm2{
+      {2, "lorem"}, {3, "ipsum"},        {-4, "dolor"},    {1, "sit"},
+      {2, "amet"},  {-1, "consectetur"}, {-5, "adipisci"}, {3, "elit"},
+  };
+  std::swap(fm1, fm2);
+  EXPECT_THAT(fm1, TestValuesAre<TypeParam>(-5, "adipisci", -4, "dolor", -1, "consectetur", 1,
+                                            "sit", 2, "lorem", 3, "ipsum"));
+  EXPECT_THAT(fm2, TestValuesAre<TypeParam>(-3, "ipsum", -2, "lorem", -1, "sit", 1, "consectetur",
+                                            4, "dolor", 5, "adipisci"));
+}
+
+TYPED_TEST_P(FlatMapWithRepresentationTest, ExtractIterator) {
+  flat_map<TestKey, std::string, TestCompare, TypeParam> fm{
+      {-2, "lorem"}, {-3, "ipsum"},      {4, "dolor"},    {-1, "sit"},
+      {-2, "amet"},  {1, "consectetur"}, {5, "adipisci"}, {-3, "elit"},
+  };
+  auto const node = fm.extract(fm.begin() + 2);
+  EXPECT_FALSE(node.empty());
+  EXPECT_TRUE(node.operator bool());
+  EXPECT_EQ(node.key(), -1);
+  EXPECT_EQ(node.mapped(), "sit");
+  EXPECT_THAT(fm, TestValuesAre<TypeParam>(-3, "ipsum", -2, "lorem", 1, "consectetur", 4, "dolor",
+                                           5, "adipisci"));
+}
+
+TYPED_TEST_P(FlatMapWithRepresentationTest, ExtractKey) {
+  flat_map<TestKey, std::string, TestCompare, TypeParam> fm{
+      {-2, "lorem"}, {-3, "ipsum"},      {4, "dolor"},    {-1, "sit"},
+      {-2, "amet"},  {1, "consectetur"}, {5, "adipisci"}, {-3, "elit"},
+  };
+  auto const node = fm.extract(TestKey{-1});
+  EXPECT_FALSE(node.empty());
+  EXPECT_TRUE(node.operator bool());
+  EXPECT_EQ(node.key(), -1);
+  EXPECT_EQ(node.mapped(), "sit");
+  EXPECT_THAT(fm, TestValuesAre<TypeParam>(-3, "ipsum", -2, "lorem", 1, "consectetur", 4, "dolor",
+                                           5, "adipisci"));
+}
+
+TYPED_TEST_P(FlatMapWithRepresentationTest, ExtractMissing) {
+  flat_map<TestKey, std::string, TestCompare, TypeParam> fm{
+      {-2, "lorem"}, {-3, "ipsum"},      {4, "dolor"},    {-1, "sit"},
+      {-2, "amet"},  {1, "consectetur"}, {5, "adipisci"}, {-3, "elit"},
+  };
+  auto const node = fm.extract(TestKey{7});
+  EXPECT_TRUE(node.empty());
+  EXPECT_FALSE(node.operator bool());
+  EXPECT_THAT(fm, TestValuesAre<TypeParam>(-3, "ipsum", -2, "lorem", -1, "sit", 1, "consectetur", 4,
+                                           "dolor", 5, "adipisci"));
+}
+
+TYPED_TEST_P(FlatMapWithRepresentationTest, ExtractKeyTransparent) {
+  flat_map<TestKey, std::string, TransparentTestCompare, TypeParam> fm{
+      {-2, "lorem"}, {-3, "ipsum"},      {4, "dolor"},    {-1, "sit"},
+      {-2, "amet"},  {1, "consectetur"}, {5, "adipisci"}, {-3, "elit"},
+  };
+  auto const node = fm.extract(OtherTestKey{-1});
+  EXPECT_FALSE(node.empty());
+  EXPECT_TRUE(node.operator bool());
+  EXPECT_EQ(node.key(), -1);
+  EXPECT_EQ(node.mapped(), "sit");
+  EXPECT_THAT(fm, TransparentTestValuesAre<TypeParam>(-3, "ipsum", -2, "lorem", 1, "consectetur", 4,
+                                                      "dolor", 5, "adipisci"));
+}
+
+TYPED_TEST_P(FlatMapWithRepresentationTest, Representation) {
+  flat_map<TestKey, std::string, TestCompare, TypeParam> fm{
+      {-2, "lorem"}, {-3, "ipsum"},      {4, "dolor"},    {-1, "sit"},
+      {-2, "amet"},  {1, "consectetur"}, {5, "adipisci"}, {-3, "elit"},
+  };
+  auto const& rep = fm.rep();
+  EXPECT_THAT(rep, ElementsAre(Pair(-3, "ipsum"), Pair(-2, "lorem"), Pair(-1, "sit"),
+                               Pair(1, "consectetur"), Pair(4, "dolor"), Pair(5, "adipisci")));
+}
+
+TYPED_TEST_P(FlatMapWithRepresentationTest, ExtractRep) {
+  flat_map<TestKey, std::string, TestCompare, TypeParam> fm{
+      {-2, "lorem"}, {-3, "ipsum"},      {4, "dolor"},    {-1, "sit"},
+      {-2, "amet"},  {1, "consectetur"}, {5, "adipisci"}, {-3, "elit"},
+  };
+  auto const rep = std::move(fm).ExtractRep();
+  EXPECT_THAT(rep, ElementsAre(Pair(-3, "ipsum"), Pair(-2, "lorem"), Pair(-1, "sit"),
+                               Pair(1, "consectetur"), Pair(4, "dolor"), Pair(5, "adipisci")));
+}
+
+TYPED_TEST_P(FlatMapWithRepresentationTest, Count) {
+  flat_map<TestKey, std::string, TransparentTestCompare, TypeParam> fm{
+      {-2, "lorem"}, {-3, "ipsum"},      {4, "dolor"},    {-1, "sit"},
+      {-2, "amet"},  {1, "consectetur"}, {5, "adipisci"}, {-3, "elit"},
+  };
+  EXPECT_EQ(fm.count(OtherTestKey{-2}), 1);
+  EXPECT_EQ(fm.count(OtherTestKey{6}), 0);
+}
+
 // TODO
 
-REGISTER_TYPED_TEST_SUITE_P(FlatMapWithRepresentationTest, Construct, ConstructWithIterators,
-                            ConstructWithInitializerList, AssignInitializerList, Deduplication,
-                            CompareEqual, CompareLHSLessThanRHS, CompareLHSGreaterThanRHS,
-                            ReverseCompareLHSLessThanRHS, ReverseCompareLHSGreaterThanRHS, At,
-                            ConstAt, AtMissing, ConstAtMissing, Subscript, SubscriptMissing,
-                            AssignSubscript, UpdateSubscript, CopyConstruct, Copy, MoveConstruct,
-                            Move, Empty, NotEmpty, Hash, Clear, Insert, MoveInsert, InsertCollision,
-                            MoveInsertCollision, InsertFromIterators, InsertFromInitializerList,
-                            InsertNode, InsertNodeCollision, InsertEmptyNode, InsertAndNotAssign,
-                            MoveInsertAndNotAssign, AssignAndNotInsert, MoveAssignAndNotInsert,
-                            Emplace, EmplaceCollision, EmplaceHint, EmplaceHintCollision,
-                            TryEmplace, TryEmplaceCollision, TryEmplaceHint,
-                            TryEmplaceHintCollision, EraseIterator, EraseRange);
+REGISTER_TYPED_TEST_SUITE_P(
+    FlatMapWithRepresentationTest, Construct, ConstructWithIterators, ConstructWithInitializerList,
+    AssignInitializerList, Deduplication, CompareEqual, CompareLHSLessThanRHS,
+    CompareLHSGreaterThanRHS, ReverseCompareLHSLessThanRHS, ReverseCompareLHSGreaterThanRHS, At,
+    ConstAt, AtMissing, ConstAtMissing, Subscript, SubscriptMissing, AssignSubscript,
+    UpdateSubscript, CopyConstruct, Copy, MoveConstruct, Move, Empty, NotEmpty, Hash, Clear, Insert,
+    MoveInsert, InsertCollision, MoveInsertCollision, InsertFromIterators,
+    InsertFromInitializerList, InsertNode, InsertNodeCollision, InsertEmptyNode, InsertAndNotAssign,
+    MoveInsertAndNotAssign, AssignAndNotInsert, MoveAssignAndNotInsert, Emplace, EmplaceCollision,
+    EmplaceHint, EmplaceHintCollision, TryEmplace, TryEmplaceCollision, TryEmplaceHint,
+    TryEmplaceHintCollision, EraseIterator, EraseRange, EraseKey, EraseNotFound,
+    EraseKeyTransparent, Swap, SwapSpecialization, ExtractIterator, ExtractKey, ExtractMissing,
+    ExtractKeyTransparent, Representation, ExtractRep, Count);
 
 using RepresentationElement = std::pair<TestKey, std::string>;
 using RepresentationTypes =

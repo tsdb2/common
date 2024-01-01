@@ -22,6 +22,7 @@ using ::testing::ElementsAre;
 using ::testing::Pair;
 using ::tsdb2::common::fixed_flat_set_of;
 using ::tsdb2::common::flat_set;
+using ::tsdb2::testing::OtherTestKey;
 using ::tsdb2::testing::ReverseTestCompare;
 using ::tsdb2::testing::TestCompare;
 using ::tsdb2::testing::TestKey;
@@ -419,7 +420,7 @@ TYPED_TEST_P(FlatSetWithRepresentationTest, EraseNotFound) {
 
 TYPED_TEST_P(FlatSetWithRepresentationTest, EraseKeyTransparent) {
   flat_set<TestKey, TransparentTestCompare, TypeParam> fs{-2, -3, 4, -1, -2, 1, 5, -3};
-  EXPECT_EQ(fs.erase(1), 1);
+  EXPECT_EQ(fs.erase(OtherTestKey{1}), 1);
   EXPECT_THAT(fs, TransparentTestKeysAre<TypeParam>(-3, -2, -1, 4, 5));
 }
 
@@ -467,7 +468,7 @@ TYPED_TEST_P(FlatSetWithRepresentationTest, ExtractMissing) {
 
 TYPED_TEST_P(FlatSetWithRepresentationTest, ExtractKeyTransparent) {
   flat_set<TestKey, TransparentTestCompare, TypeParam> fs{-2, -3, 4, -1, -2, 1, 5, -3};
-  auto const node = fs.extract(-1);
+  auto const node = fs.extract(OtherTestKey{-1});
   EXPECT_FALSE(node.empty());
   EXPECT_TRUE(node.operator bool());
   EXPECT_EQ(node.value(), -1);
@@ -500,7 +501,7 @@ TYPED_TEST_P(FlatSetWithRepresentationTest, Find) {
 
 TYPED_TEST_P(FlatSetWithRepresentationTest, FindTransparent) {
   flat_set<TestKey, TransparentTestCompare, TypeParam> fs{-2, -3, 4, -1, -2, 1, 5, -3};
-  auto const it = fs.find(4);
+  auto const it = fs.find(OtherTestKey{4});
   EXPECT_EQ(it->field, 4);
 }
 
@@ -518,7 +519,7 @@ TYPED_TEST_P(FlatSetWithRepresentationTest, ConstFind) {
 
 TYPED_TEST_P(FlatSetWithRepresentationTest, ConstFindTransparent) {
   flat_set<TestKey, TransparentTestCompare, TypeParam> const fs{-2, -3, 4, -1, -2, 1, 5, -3};
-  auto const it = fs.find(4);
+  auto const it = fs.find(OtherTestKey{4});
   EXPECT_EQ(it->field, 4);
 }
 
@@ -535,7 +536,7 @@ TYPED_TEST_P(FlatSetWithRepresentationTest, Contains) {
 
 TYPED_TEST_P(FlatSetWithRepresentationTest, ContainsTransparent) {
   flat_set<TestKey, TransparentTestCompare, TypeParam> const fs{-2, -3, 4, -1, -2, 1, 5, -3};
-  EXPECT_TRUE(fs.contains(4));
+  EXPECT_TRUE(fs.contains(OtherTestKey{4}));
 }
 
 TYPED_TEST_P(FlatSetWithRepresentationTest, ContainsMissing) {

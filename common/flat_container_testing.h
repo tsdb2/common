@@ -32,6 +32,11 @@ struct TestKey {
   int field;
 };
 
+struct OtherTestKey {
+  OtherTestKey(int const field_value) : field(field_value) {}
+  int field;
+};
+
 using TestValue = std::pair<TestKey, std::string>;
 
 struct TestCompare {
@@ -44,8 +49,8 @@ struct ReverseTestCompare {
 
 struct TransparentTestCompare {
   using is_transparent = void;
-  template <typename RHS>
-  bool operator()(TestKey const& lhs, RHS const& rhs) const {
+  template <typename LHS, typename RHS>
+  bool operator()(LHS const& lhs, RHS const& rhs) const {
     return lhs.field < rhs.field;
   }
 };

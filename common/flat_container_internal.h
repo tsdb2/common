@@ -24,13 +24,15 @@ inline SortedDeduplicatedContainer constexpr kSortedDeduplicatedContainer;
 
 namespace internal {
 
-template <typename KeyType, typename KeyArg, typename Compare, typename IsTransparent = void>
+template <typename Compare, typename IsTransparent = void>
 struct key_arg {
+  template <typename KeyType, typename KeyArg>
   using type = KeyType;
 };
 
-template <typename KeyType, typename KeyArg, typename Compare>
-struct key_arg<KeyType, KeyArg, Compare, std::void_t<typename Compare::is_transparent>> {
+template <typename Compare>
+struct key_arg<Compare, std::void_t<typename Compare::is_transparent>> {
+  template <typename KeyType, typename KeyArg>
   using type = KeyArg;
 };
 

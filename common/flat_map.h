@@ -84,24 +84,28 @@ class flat_map {
     node_type node;
   };
 
+  template <typename Arg>
+  using key_arg_t = typename internal::key_arg<Compare>::template type<key_type, Arg>;
+
   class value_compare {
    public:
     explicit constexpr value_compare(Compare const& comp) : comp_(comp) {}
 
     template <typename LHS, typename RHS>
-    constexpr bool operator()(LHS const& lhs, RHS const& rhs) const {
-      return comp_(to_key(lhs), to_key(rhs));
+    constexpr bool operator()(LHS&& lhs, RHS&& rhs) const {
+      return comp_(to_key(std::forward<LHS>(lhs)), to_key(std::forward<RHS>(rhs)));
     }
 
    private:
     static constexpr key_type const& to_key(value_type const& value) { return value.first; }
-    static constexpr key_type const& to_key(key_type const& key) { return key; }
+
+    template <typename KeyArg = key_type>
+    static constexpr auto to_key(key_arg_t<KeyArg> const& key) {
+      return key;
+    }
 
     Compare const& comp_;
   };
-
-  template <typename Arg>
-  using key_arg_t = typename internal::key_arg<key_type, Arg, Compare>::type;
 
   constexpr flat_map() : flat_map(Compare()) {}
 
@@ -410,7 +414,7 @@ class flat_map {
 
   Representation&& ExtractRep() && { return std::move(rep_); }
 
-  template <typename KeyArg>
+  template <typename KeyArg = key_type>
   size_t count(key_arg_t<KeyArg> const& key) const {
     return std::binary_search(rep_.begin(), rep_.end(), key, value_compare(comp_));
   }
