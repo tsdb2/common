@@ -284,10 +284,10 @@ class flat_map {
 
   template <typename Mapped>
   std::pair<iterator, bool> insert_or_assign(Key const& key, Mapped&& mapped) {
-    auto it = std::lower_bound(rep_.begin(), rep_.end(), key, comp_);
-    if (it == rep_.end() || comp_(key, it->first)) {
-      it = insert(key, std::forward<Mapped>(mapped));
-      return {it, true};
+    value_compare comp{comp_};
+    auto it = std::lower_bound(rep_.begin(), rep_.end(), key, comp);
+    if (it == rep_.end() || comp(key, it->first)) {
+      return insert(value_type(key, std::forward<Mapped>(mapped)));
     } else {
       it->second = std::move(mapped);
       return {it, false};
@@ -296,10 +296,10 @@ class flat_map {
 
   template <typename Mapped>
   std::pair<iterator, bool> insert_or_assign(Key&& key, Mapped&& mapped) {
-    auto it = std::lower_bound(rep_.begin(), rep_.end(), key, comp_);
-    if (it == rep_.end() || comp_(key, it->first)) {
-      it = insert(std::move(key), std::forward<Mapped>(mapped));
-      return {it, true};
+    value_compare comp{comp_};
+    auto it = std::lower_bound(rep_.begin(), rep_.end(), key, comp);
+    if (it == rep_.end() || comp(key, it->first)) {
+      return insert(value_type(std::move(key), std::forward<Mapped>(mapped)));
     } else {
       it->second = std::move(mapped);
       return {it, false};
@@ -323,7 +323,8 @@ class flat_map {
 
   template <typename... Args>
   iterator emplace_hint(const_iterator const hint, Args&&... args) {
-    return emplace(std::forward<Args>(args)...);
+    auto [it, unused] = emplace(std::forward<Args>(args)...);
+    return it;
   }
 
   template <typename... Args>
@@ -354,12 +355,14 @@ class flat_map {
 
   template <typename... Args>
   iterator try_emplace(const_iterator const hint, Key const& key, Args&&... args) {
-    return try_emplace(key, std::forward<Args>(args)...);
+    auto [it, unused] = try_emplace(key, std::forward<Args>(args)...);
+    return it;
   }
 
   template <typename... Args>
   iterator try_emplace(const_iterator const hint, Key&& key, Args&&... args) {
-    return try_emplace(std::move(key), std::forward<Args>(args)...);
+    auto [it, unused] = try_emplace(std::move(key), std::forward<Args>(args)...);
+    return it;
   }
 
   iterator erase(iterator const pos) { return rep_.erase(pos); }
@@ -414,8 +417,9 @@ class flat_map {
 
   template <typename KeyArg = key_type>
   iterator find(key_arg_t<KeyArg> const& key) {
-    auto const it = std::lower_bound(rep_.begin(), rep_.end(), key, comp_);
-    if (it == rep_.end() || comp_(key, it->first)) {
+    value_compare comp{comp_};
+    auto const it = std::lower_bound(rep_.begin(), rep_.end(), key, comp);
+    if (it == rep_.end() || comp(key, it->first)) {
       return rep_.end();
     } else {
       return it;
@@ -424,8 +428,9 @@ class flat_map {
 
   template <typename KeyArg = key_type>
   const_iterator find(key_arg_t<KeyArg> const& key) const {
-    auto const it = std::lower_bound(rep_.begin(), rep_.end(), key, comp_);
-    if (it == rep_.end() || comp_(key, it->first)) {
+    value_compare comp{comp_};
+    auto const it = std::lower_bound(rep_.begin(), rep_.end(), key, comp);
+    if (it == rep_.end() || comp(key, it->first)) {
       return rep_.end();
     } else {
       return it;
