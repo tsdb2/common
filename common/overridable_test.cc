@@ -16,14 +16,22 @@ class TestClass {
   explicit TestClass(std::string_view const label) : label_(label) {}
 
   std::string_view label() const { return label_; }
+  void set_label(std::string_view const value) { label_ = value; }
 
  private:
-  std::string const label_;
+  std::string label_;
 };
 
 TEST(OverridableTest, NotOverridden) {
+  Overridable<TestClass> const instance{"foo"};
+  EXPECT_EQ(instance->label(), "foo");
+}
+
+TEST(OverridableTest, NotConst) {
   Overridable<TestClass> instance{"foo"};
   EXPECT_EQ(instance->label(), "foo");
+  instance->set_label("bar");
+  EXPECT_EQ(instance->label(), "bar");
 }
 
 TEST(OverridableTest, Overridden) {

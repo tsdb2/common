@@ -21,10 +21,11 @@ class TestSingleton final {
   ~TestSingleton() { *flag_ = false; }
 
   int field() const { return field_; }
+  void set_field(int const value) { field_ = value; }
 
  private:
   bool *const flag_;
-  int const field_;
+  int field_;
 };
 
 class SingletonTest : public ::testing::Test {
@@ -42,9 +43,15 @@ TEST_F(SingletonTest, DeferConstruction) {
 }
 
 TEST_F(SingletonTest, Retrieve) {
-  Singleton<TestSingleton> s{&flag_, 42};
+  Singleton<TestSingleton> const s{&flag_, 42};
   EXPECT_EQ(s->field(), 42);
   EXPECT_TRUE(flag_);
+}
+
+TEST_F(SingletonTest, NotConst) {
+  Singleton<TestSingleton> s{&flag_, 42};
+  s->set_field(123);
+  EXPECT_EQ(s->field(), 123);
 }
 
 TEST_F(SingletonTest, Dereference) {

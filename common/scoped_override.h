@@ -14,9 +14,9 @@ namespace common {
 template <typename Overridable, typename T>
 class ScopedOverride {
  public:
-  explicit ScopedOverride(Overridable* const overridable, T* const override)
+  explicit ScopedOverride(Overridable* const overridable, T* const value)
       : overridable_(overridable) {
-    overridable_->OverrideOrDie(override);
+    overridable_->OverrideOrDie(value);
   }
 
   ~ScopedOverride() { MaybeRestore(); }

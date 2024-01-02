@@ -26,18 +26,18 @@ class Overridable {
   explicit Overridable(Args&&... args) : value_(std::forward<Args>(args)...) {}
 
   // TEST ONLY: replace the wrapped value with a different one.
-  void Override(T* const override) ABSL_LOCKS_EXCLUDED(mutex_) {
+  void Override(T* const value) ABSL_LOCKS_EXCLUDED(mutex_) {
     absl::MutexLock lock{&mutex_};
-    override_ = override;
+    override_ = value;
     overridden_.store(true, std::memory_order_release);
   }
 
   // TEST ONLY: replace the wrapped value with a different one, checkfailing if a different override
   // is already in place.
-  void OverrideOrDie(T* const override) ABSL_LOCKS_EXCLUDED(mutex_) {
+  void OverrideOrDie(T* const value) ABSL_LOCKS_EXCLUDED(mutex_) {
     absl::MutexLock lock{&mutex_};
     CHECK(!override_);
-    override_ = override;
+    override_ = value;
     overridden_.store(true, std::memory_order_release);
   }
 
@@ -48,8 +48,23 @@ class Overridable {
     overridden_.store(false, std::memory_order_release);
   }
 
-  // Retrieve the wrapped value.
-  T* Get() const ABSL_LOCKS_EXCLUDED(mutex_) {
+  // Retrieves the wrapped value.
+  T* Get() { return GetInternal(); }
+  T const* Get() const { return GetInternal(); }
+
+  T* operator->() { return Get(); }
+  T const* operator->() const { return Get(); }
+
+  T& operator*() { return *Get(); }
+  T const& operator*() const { return *Get(); }
+
+ private:
+  Overridable(Overridable const&) = delete;
+  Overridable& operator=(Overridable const&) = delete;
+  Overridable(Overridable&&) = delete;
+  Overridable& operator=(Overridable&&) = delete;
+
+  T* GetInternal() const ABSL_LOCKS_EXCLUDED(mutex_) {
     if (ABSL_PREDICT_FALSE(overridden_.load(std::memory_order_relaxed))) {
       absl::MutexLock lock{&mutex_};
       if (override_) {
@@ -61,15 +76,6 @@ class Overridable {
       return &value_;
     }
   }
-
-  T* operator->() const { return Get(); }
-  T& operator*() const { return *Get(); }
-
- private:
-  Overridable(Overridable const&) = delete;
-  Overridable& operator=(Overridable const&) = delete;
-  Overridable(Overridable&&) = delete;
-  Overridable& operator=(Overridable&&) = delete;
 
   T mutable value_;
 

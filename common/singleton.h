@@ -42,18 +42,18 @@ class Singleton {
   explicit Singleton(Args&&... args) : construct_([=] { Construct(args...); }) {}
 
   // TEST ONLY: replace the wrapped value with a different one.
-  void Override(T* const override) {
+  void Override(T* const value) {
     absl::MutexLock lock{mutex_.Get()};
-    override_ = override;
+    override_ = value;
     overridden_.store(true, std::memory_order_release);
   }
 
   // TEST ONLY: replace the wrapped value with a different one, checkfailing if a different override
   // is already in place.
-  void OverrideOrDie(T* const override) {
+  void OverrideOrDie(T* const value) {
     absl::MutexLock lock{mutex_.Get()};
     CHECK(!override_);
-    override_ = override;
+    override_ = value;
     overridden_.store(true, std::memory_order_release);
   }
 
@@ -64,20 +64,15 @@ class Singleton {
     overridden_.store(false, std::memory_order_release);
   }
 
-  // Retrieve the wrapped value.
-  T* Get() const {
-    if (ABSL_PREDICT_FALSE(overridden_.load(std::memory_order_relaxed))) {
-      absl::MutexLock lock{mutex_.Get()};
-      if (override_) {
-        return override_;
-      }
-    }
-    absl::call_once(once_, *construct_);
-    return reinterpret_cast<T*>(storage_);
-  }
+  // Retrieves the wrapped value.
+  T* Get() { return GetInternal(); }
+  T const* Get() const { return GetInternal(); }
 
-  T* operator->() const { return Get(); }
-  T& operator*() const { return *Get(); }
+  T* operator->() { return Get(); }
+  T const* operator->() const { return Get(); }
+
+  T& operator*() { return *Get(); }
+  T const& operator*() const { return *Get(); }
 
  private:
   Singleton(Singleton const&) = delete;
@@ -88,6 +83,17 @@ class Singleton {
   template <typename... Args>
   void Construct(Args&&... args) {
     new (storage_) T(std::forward<Args>(args)...);
+  }
+
+  T* GetInternal() const {
+    if (ABSL_PREDICT_FALSE(overridden_.load(std::memory_order_relaxed))) {
+      absl::MutexLock lock{mutex_.Get()};
+      if (override_) {
+        return override_;
+      }
+    }
+    absl::call_once(once_, *construct_);
+    return reinterpret_cast<T*>(storage_);
   }
 
   alignas(T) char mutable storage_[sizeof(T)];
