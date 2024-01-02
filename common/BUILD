@@ -214,6 +214,43 @@ cc_test(
 )
 
 cc_library(
+    name = "singleton",
+    hdrs = ["singleton.h"],
+    deps = [
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/functional:any_invocable",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/synchronization",
+    ],
+)
+
+cc_test(
+    name = "singleton_test",
+    srcs = ["singleton_test.cc"],
+    deps = [
+        ":scoped_override",
+        ":singleton",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "scoped_override",
+    testonly = True,
+    hdrs = ["scoped_override.h"],
+)
+
+cc_test(
+    name = "scoped_override_test",
+    srcs = ["scoped_override_test.cc"],
+    deps = [
+        ":overridable",
+        ":scoped_override",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "clock",
     srcs = ["clock.cc"],
     hdrs = ["clock.h"],

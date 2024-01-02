@@ -1,29 +1,23 @@
-#ifndef __TSDB2_COMMON_OVERRIDABLE_H__
-#define __TSDB2_COMMON_OVERRIDABLE_H__
+#ifndef __TSDB2_COMMON_SINGLETON_H__
+#define __TSDB2_COMMON_SINGLETON_H__
 
 #include <atomic>
 #include <utility>
 
+#include "absl/base/call_once.h"
 #include "absl/base/optimization.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/log/check.h"
 #include "absl/synchronization/mutex.h"
 
 namespace tsdb2 {
 namespace common {
 
-// Allows overriding a value of type T for testing purposes, e.g. replacing with a mock
-// implementation.
-//
-// Note that `Overridable` makes `T` non-copyable and non-movable because it encapsulates an atomic
-// and a mutex, and also because `ScopedOverride` objects will retain pointers to it.
-//
-// The internal mutex is used only to prevent concurrent constructions from `Override()` calls, but
-// retrieving the regular value in the absence of an override does not block and is very fast.
 template <typename T>
-class Overridable {
+class Singleton {
  public:
   template <typename... Args>
-  explicit Overridable(Args&&... args) : value_(std::forward<Args>(args)...) {}
+  explicit Singleton(Args&&... args) : construct_([=] { Construct(args...); }) {}
 
   // TEST ONLY: replace the wrapped value with a different one.
   void Override(T* const override) ABSL_LOCKS_EXCLUDED(mutex_) {
@@ -54,31 +48,37 @@ class Overridable {
       absl::MutexLock lock{&mutex_};
       if (override_) {
         return override_;
-      } else {
-        return &value_;
       }
-    } else {
-      return &value_;
     }
+    absl::call_once(once_, construct_);
+    return reinterpret_cast<T*>(storage_);
   }
 
   T* operator->() const { return Get(); }
   T& operator*() const { return *Get(); }
 
  private:
-  Overridable(Overridable const&) = delete;
-  Overridable& operator=(Overridable const&) = delete;
-  Overridable(Overridable&&) = delete;
-  Overridable& operator=(Overridable&&) = delete;
+  Singleton(Singleton const&) = delete;
+  Singleton& operator=(Singleton const&) = delete;
+  Singleton(Singleton&&) = delete;
+  Singleton& operator=(Singleton&&) = delete;
 
-  T mutable value_;
+  template <typename... Args>
+  void Construct(Args&&... args) {
+    new (storage_) T(std::forward<Args>(args)...);
+  }
 
-  std::atomic<bool> overridden_{false};
+  alignas(T) char mutable storage_[sizeof(T)];
+
+  absl::once_flag mutable once_;
+  absl::AnyInvocable<void()> mutable construct_;
+
   absl::Mutex mutable mutex_;
+  std::atomic<bool> overridden_ = false;
   T* override_ ABSL_GUARDED_BY(mutex_) = nullptr;
 };
 
 }  // namespace common
 }  // namespace tsdb2
 
-#endif  // __TSDB2_COMMON_OVERRIDABLE_H__
+#endif  // __TSDB2_COMMON_SINGLETON_H__
