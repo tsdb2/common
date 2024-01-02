@@ -1,13 +1,12 @@
 #ifndef __TSDB2_COMMON_MOCK_CLOCK_H__
 #define __TSDB2_COMMON_MOCK_CLOCK_H__
 
+#include <algorithm>
 #include <memory>
-#include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_set.h"
-#include "absl/functional/any_invocable.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 #include "common/clock.h"
@@ -48,62 +47,38 @@ class MockClock : public Clock {
   void AdvanceTime(absl::Duration delta) ABSL_LOCKS_EXCLUDED(mutex_);
 
  private:
-  using TimeCallback = absl::AnyInvocable<void(absl::Time)>;
-
   class TimeListener final {
    public:
-    explicit TimeListener(TimeCallback callback) : callback_(std::move(callback)) {}
+    explicit TimeListener(absl::Mutex* const mutex, absl::Time const deadline,
+                          absl::Condition const& condition, absl::Time const current_time)
+        : mutex_(mutex), deadline_(deadline), condition_(condition), current_time_(current_time) {}
 
-    void Run(absl::Time const current_time) { callback_(current_time); }
+    bool Eval() const { return current_time_ >= deadline_ || condition_.Eval(); }
+
+    bool Run(absl::Time const current_time) {
+      absl::MutexLock lock{mutex_};
+      current_time_ = std::max(current_time_, current_time);
+      return Eval();
+    }
 
    private:
-    TimeCallback callback_;
+    absl::Mutex* const mutex_;
+    absl::Time const deadline_;
+    absl::Condition const& condition_;
+    absl::Time current_time_;
   };
 
   using ListenerSet = absl::flat_hash_set<std::shared_ptr<TimeListener>>;
-
-  class ListenerHandle final {
-   public:
-    ~ListenerHandle() { MaybeRemove(); }
-
-    ListenerHandle(ListenerHandle&& other) noexcept
-        : parent_(other.parent_), listener_(std::move(other.listener_)) {
-      other.parent_ = nullptr;
-    }
-
-    ListenerHandle& operator=(ListenerHandle&& other) noexcept {
-      MaybeRemove();
-      parent_ = other.parent_;
-      listener_ = std::move(other.listener_);
-      other.parent_ = nullptr;
-      return *this;
-    }
-
-   private:
-    friend class MockClock;
-
-    explicit ListenerHandle(MockClock* const parent, std::shared_ptr<TimeListener> listener)
-        : parent_(parent), listener_(std::move(listener)) {}
-
-    ListenerHandle(ListenerHandle const&) = delete;
-    ListenerHandle& operator=(ListenerHandle const&) = delete;
-
-    void MaybeRemove() {
-      if (parent_) {
-        parent_->RemoveListener(listener_);
-      }
-    }
-
-    MockClock* parent_;
-    std::shared_ptr<TimeListener> listener_;
-  };
 
   MockClock(MockClock const&) = delete;
   MockClock& operator=(MockClock const&) = delete;
   MockClock(MockClock&&) = delete;
   MockClock& operator=(MockClock&&) = delete;
 
-  ListenerHandle AddListener(TimeCallback callback) ABSL_LOCKS_EXCLUDED(mutex_);
+  std::shared_ptr<TimeListener> AddListener(absl::Mutex* mutex, absl::Time deadline,
+                                            absl::Condition const& condition)
+      ABSL_LOCKS_EXCLUDED(mutex_);
+
   void RemoveListener(std::shared_ptr<TimeListener> const& listener) ABSL_LOCKS_EXCLUDED(mutex_);
 
   absl::Mutex mutable mutex_;

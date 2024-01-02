@@ -13,6 +13,8 @@ namespace common {
 // Adds reference counting to a class, making it suitable for use with `reffed_ptr`, and prevents
 // `this` from being deleted until the reference count drops to zero.
 //
+// We also provide `blocking_ptr<T>`, which is an alias for `reffed_ptr<BlockingRefCounted<T>>`.
+//
 // Example usage:
 //
 //   class MyClass {
@@ -26,9 +28,9 @@ namespace common {
 //   BlockingRefCounted<MyClass> rc{42, 3.14};
 //   rc.DoThisAndThat();
 //
-//   void HandOut(reffed_ptr<BlockingRefCounted<MyClass>> ptr);
+//   void HandOut(blocking_ptr<MyClass> ptr);
 //
-//   HandOut(reffed_ptr<BlockingRefCounted<MyClass>>(&rc));
+//   HandOut(blocking_ptr<MyClass>(&rc));
 //
 //
 // This can greatly simplify reference count-based object management because the owner of an object
@@ -86,12 +88,6 @@ class BlockingRefCounted final : public T {
 
 template <typename T>
 using blocking_ptr = reffed_ptr<BlockingRefCounted<T>>;
-
-// Constructs a new object of type BlockingRefCounted<T> and wraps it in a `blocking_ptr<T>`.
-template <typename T, typename... Args>
-auto MakeBlocking(Args&&... args) {
-  return blocking_ptr<T>(new BlockingRefCounted<T>(std::forward<Args>(args)...));
-}
 
 }  // namespace common
 }  // namespace tsdb2

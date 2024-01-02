@@ -38,13 +38,8 @@ bool MockClock::AwaitWithTimeout(absl::Mutex* const mutex, absl::Condition const
 
 bool MockClock::AwaitWithDeadline(absl::Mutex* const mutex, absl::Condition const& condition,
                                   absl::Time const deadline) const {
-  absl::Time current_time = TimeNow();
-  auto listener = [mutex, &current_time](absl::Time const new_time) ABSL_LOCKS_EXCLUDED(mutex) {
-    absl::MutexLock lock{mutex};
-    current_time = new_time;
-  };
-  auto const handle = const_cast<MockClock*>(this)->AddListener(std::move(listener));
-  mutex->Await(SimpleCondition([&] { return current_time >= deadline || condition.Eval(); }));
+  auto const listener = const_cast<MockClock*>(this)->AddListener(mutex, deadline, condition);
+  mutex->Await(absl::Condition(listener.get(), &TimeListener::Eval));
   return condition.Eval();
 }
 
@@ -74,11 +69,13 @@ void MockClock::AdvanceTime(absl::Duration const delta) {
   }
 }
 
-MockClock::ListenerHandle MockClock::AddListener(TimeCallback callback) {
+std::shared_ptr<MockClock::TimeListener> MockClock::AddListener(absl::Mutex* const mutex,
+                                                                absl::Time const deadline,
+                                                                absl::Condition const& condition) {
   absl::MutexLock lock{&mutex_};
-  auto const [it, inserted] =
-      listeners_.emplace(std::make_shared<TimeListener>(std::move(callback)));
-  return ListenerHandle(this, *it);
+  auto const [it, unused] =
+      listeners_.emplace(std::make_shared<TimeListener>(mutex, deadline, condition, current_time_));
+  return *it;
 }
 
 void MockClock::RemoveListener(std::shared_ptr<TimeListener> const& listener) {

@@ -180,6 +180,7 @@ cc_library(
     name = "blocking_ref_counted",
     hdrs = ["blocking_ref_counted.h"],
     deps = [
+        ":reffed_ptr",
         "@com_google_absl//absl/synchronization",
     ],
 )
@@ -291,7 +292,7 @@ cc_library(
     srcs = ["mock_clock.cc"],
     hdrs = ["mock_clock.h"],
     deps = [
-        ":clock",
+                ":clock",
         ":simple_condition",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/container:flat_hash_set",
