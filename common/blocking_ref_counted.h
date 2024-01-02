@@ -5,6 +5,7 @@
 #include <utility>
 
 #include "absl/synchronization/mutex.h"
+#include "common/reffed_ptr.h"
 
 namespace tsdb2 {
 namespace common {
@@ -82,6 +83,15 @@ class BlockingRefCounted final : public T {
   absl::Mutex mutable mutex_;
   intptr_t ref_count_ ABSL_GUARDED_BY(mutex_) = 0;
 };
+
+template <typename T>
+using blocking_ptr = reffed_ptr<BlockingRefCounted<T>>;
+
+// Constructs a new object of type BlockingRefCounted<T> and wraps it in a `blocking_ptr<T>`.
+template <typename T, typename... Args>
+auto MakeBlocking(Args&&... args) {
+  return blocking_ptr<T>(new BlockingRefCounted<T>(std::forward<Args>(args)...));
+}
 
 }  // namespace common
 }  // namespace tsdb2

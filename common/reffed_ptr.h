@@ -166,7 +166,7 @@ class reffed_ptr final {
 // `Unref` in the wrapped object MUST delete the object using the `delete` operator when the
 // reference count drops to zero, otherwise the object's memory gets leaked.
 template <typename T, typename... Args>
-reffed_ptr<T> MakeReffed(Args&&... args) {
+auto MakeReffed(Args&&... args) {
   return reffed_ptr<T>(new T(std::forward<Args>(args)...));
 }
 

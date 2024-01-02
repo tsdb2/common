@@ -10,7 +10,9 @@
 
 namespace {
 
+using ::tsdb2::common::blocking_ptr;
 using ::tsdb2::common::BlockingRefCounted;
+using ::tsdb2::common::MakeBlocking;
 using ::tsdb2::common::reffed_ptr;
 
 class TestObject {
@@ -30,7 +32,7 @@ TEST(BlockingRefCountedTest, Constructor) {
   EXPECT_EQ(rc.label(), "foo");
 }
 
-TEST(BlockingRefCounted, ReferenceCount) {
+TEST(BlockingRefCountedTest, ReferenceCount) {
   BlockingRefCounted<TestObject> rc;
   EXPECT_EQ(rc.ref_count(), 0);
   rc.Ref();
@@ -43,7 +45,7 @@ TEST(BlockingRefCounted, ReferenceCount) {
   EXPECT_EQ(rc.ref_count(), 0);
 }
 
-TEST(BlockingRefCounted, Destructor) {
+TEST(BlockingRefCountedTest, Destructor) {
   absl::Notification started;
   absl::Notification finished;
   reffed_ptr<BlockingRefCounted<TestObject>> ptr;
@@ -51,6 +53,24 @@ TEST(BlockingRefCounted, Destructor) {
     {
       BlockingRefCounted<TestObject> rc{"foo"};
       ptr = &rc;
+      started.Notify();
+    }
+    finished.Notify();
+  }};
+  started.WaitForNotification();
+  EXPECT_EQ(ptr->label(), "foo");
+  EXPECT_FALSE(finished.HasBeenNotified());
+  ptr.reset();
+  thread.join();
+}
+
+TEST(BlockingRefCountedTest, BlockingPtr) {
+  absl::Notification started;
+  absl::Notification finished;
+  blocking_ptr<TestObject> ptr;
+  std::thread thread{[&] {
+    {
+      ptr = MakeBlocking<TestObject>("foo");
       started.Notify();
     }
     finished.Notify();
