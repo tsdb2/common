@@ -214,9 +214,24 @@ cc_test(
 )
 
 cc_library(
+    name = "no_destructor",
+    hdrs = ["no_destructor.h"],
+)
+
+cc_test(
+    name = "no_destructor_test",
+    srcs = ["no_destructor_test.cc"],
+    deps = [
+        ":no_destructor",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "singleton",
     hdrs = ["singleton.h"],
     deps = [
+        ":no_destructor",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/functional:any_invocable",
         "@com_google_absl//absl/log:check",

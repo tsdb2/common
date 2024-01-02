@@ -9,10 +9,32 @@
 #include "absl/functional/any_invocable.h"
 #include "absl/log/check.h"
 #include "absl/synchronization/mutex.h"
+#include "common/no_destructor.h"
 
 namespace tsdb2 {
 namespace common {
 
+// Holds a singleton instance of a class, providing the following functionalities:
+//
+//  * lazy construction;
+//  * trivial destruction (the destructor of the wrapped object is never executed);
+//  * overriding the instance in tests.
+//
+// Lazy construction and trivial destruction make `Singleton` suitable for use in global scope and
+// avoid initialization order fiascos.
+//
+// `Singleton` is fully thread-safe and is conceptually similar to the localized static
+// initialization pattern:
+//
+//   MyClass GetInstance() {
+//     static MyClass *const kInstance = new MyClass();
+//     return kInstance;
+//   }
+//
+// However such pattern doesn't allow overriding in tests.
+//
+// Retrieving the instance wrapped in a `Singleton` is very fast in production, as the check for
+// possible overrides only performs a single relaxed atomic load when there's no override.
 template <typename T>
 class Singleton {
  public:
@@ -20,37 +42,37 @@ class Singleton {
   explicit Singleton(Args&&... args) : construct_([=] { Construct(args...); }) {}
 
   // TEST ONLY: replace the wrapped value with a different one.
-  void Override(T* const override) ABSL_LOCKS_EXCLUDED(mutex_) {
-    absl::MutexLock lock{&mutex_};
+  void Override(T* const override) {
+    absl::MutexLock lock{mutex_.Get()};
     override_ = override;
     overridden_.store(true, std::memory_order_release);
   }
 
   // TEST ONLY: replace the wrapped value with a different one, checkfailing if a different override
   // is already in place.
-  void OverrideOrDie(T* const override) ABSL_LOCKS_EXCLUDED(mutex_) {
-    absl::MutexLock lock{&mutex_};
+  void OverrideOrDie(T* const override) {
+    absl::MutexLock lock{mutex_.Get()};
     CHECK(!override_);
     override_ = override;
     overridden_.store(true, std::memory_order_release);
   }
 
   // TEST ONLY: restore the original value and destroy the override, if any.
-  void Restore() ABSL_LOCKS_EXCLUDED(mutex_) {
-    absl::MutexLock lock{&mutex_};
+  void Restore() {
+    absl::MutexLock lock{mutex_.Get()};
     override_ = nullptr;
     overridden_.store(false, std::memory_order_release);
   }
 
   // Retrieve the wrapped value.
-  T* Get() const ABSL_LOCKS_EXCLUDED(mutex_) {
+  T* Get() const {
     if (ABSL_PREDICT_FALSE(overridden_.load(std::memory_order_relaxed))) {
-      absl::MutexLock lock{&mutex_};
+      absl::MutexLock lock{mutex_.Get()};
       if (override_) {
         return override_;
       }
     }
-    absl::call_once(once_, construct_);
+    absl::call_once(once_, *construct_);
     return reinterpret_cast<T*>(storage_);
   }
 
@@ -71,11 +93,11 @@ class Singleton {
   alignas(T) char mutable storage_[sizeof(T)];
 
   absl::once_flag mutable once_;
-  absl::AnyInvocable<void()> mutable construct_;
+  NoDestructor<absl::AnyInvocable<void()>> mutable construct_;
 
-  absl::Mutex mutable mutex_;
+  NoDestructor<absl::Mutex> mutable mutex_;
   std::atomic<bool> overridden_ = false;
-  T* override_ ABSL_GUARDED_BY(mutex_) = nullptr;
+  T* override_ = nullptr;
 };
 
 }  // namespace common
