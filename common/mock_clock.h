@@ -3,13 +3,16 @@
 
 #include <algorithm>
 #include <memory>
+#include <vector>
 
 #include "absl/base/attributes.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/functional/function_ref.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 #include "common/clock.h"
+#include "common/flat_map.h"
 
 namespace tsdb2 {
 namespace common {
@@ -47,43 +50,45 @@ class MockClock : public Clock {
   void AdvanceTime(absl::Duration delta) ABSL_LOCKS_EXCLUDED(mutex_);
 
  private:
-  class TimeListener final {
+  class TimeListener {
    public:
-    explicit TimeListener(absl::Mutex* const mutex, absl::Time const deadline,
-                          absl::Condition const& condition, absl::Time const current_time)
-        : mutex_(mutex), deadline_(deadline), condition_(condition), current_time_(current_time) {}
+    explicit TimeListener(absl::Mutex* const mutex) : mutex_(mutex) {}
 
-    bool Eval() const { return current_time_ >= deadline_ || condition_.Eval(); }
+    bool is_notified() const { return notified_; }
+    void set_notified(bool const value) { notified_ = value; }
 
-    bool Run(absl::Time const current_time) {
+    void Notify() {
       absl::MutexLock lock{mutex_};
-      current_time_ = std::max(current_time_, current_time);
-      return Eval();
+      notified_ = true;
     }
 
    private:
-    absl::Mutex* const mutex_;
-    absl::Time const deadline_;
-    absl::Condition const& condition_;
-    absl::Time current_time_;
-  };
+    TimeListener(TimeListener const&) = delete;
+    TimeListener& operator=(TimeListener const&) = delete;
+    TimeListener(TimeListener&&) = delete;
+    TimeListener& operator=(TimeListener&&) = delete;
 
-  using ListenerSet = absl::flat_hash_set<std::shared_ptr<TimeListener>>;
+    absl::Mutex* const mutex_;
+    bool notified_ = false;
+  };
 
   MockClock(MockClock const&) = delete;
   MockClock& operator=(MockClock const&) = delete;
   MockClock(MockClock&&) = delete;
   MockClock& operator=(MockClock&&) = delete;
 
-  std::shared_ptr<TimeListener> AddListener(absl::Mutex* mutex, absl::Time deadline,
-                                            absl::Condition const& condition)
-      ABSL_LOCKS_EXCLUDED(mutex_);
+  bool AddListener(absl::Time deadline, TimeListener* listener) ABSL_LOCKS_EXCLUDED(mutex_);
 
-  void RemoveListener(std::shared_ptr<TimeListener> const& listener) ABSL_LOCKS_EXCLUDED(mutex_);
+  bool RemoveListener(absl::Time deadline, TimeListener* listener) ABSL_LOCKS_EXCLUDED(mutex_);
+
+  std::vector<TimeListener*> GetDeadlinedListeners() ABSL_SHARED_LOCKS_REQUIRED(mutex_);
+
+  bool AwaitWithDeadlineInternal(absl::Mutex* mutex, absl::Condition const& condition,
+                                 absl::Time deadline) ABSL_SHARED_LOCKS_REQUIRED(mutex);
 
   absl::Mutex mutable mutex_;
   absl::Time current_time_ ABSL_GUARDED_BY(mutex_);
-  ListenerSet listeners_ ABSL_GUARDED_BY(mutex_);
+  flat_map<absl::Time, absl::flat_hash_set<TimeListener*>> listeners_ ABSL_GUARDED_BY(mutex_);
 };
 
 }  // namespace common

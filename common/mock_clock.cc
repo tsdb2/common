@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <utility>
+#include <vector>
 
 #include "absl/log/check.h"
 #include "absl/synchronization/mutex.h"
@@ -33,54 +34,81 @@ void MockClock::SleepUntil(absl::Time const wakeup_time) const {
 
 bool MockClock::AwaitWithTimeout(absl::Mutex* const mutex, absl::Condition const& condition,
                                  absl::Duration const timeout) const {
-  return AwaitWithDeadline(mutex, condition, TimeNow() + timeout);
+  return const_cast<MockClock*>(this)->AwaitWithDeadlineInternal(mutex, condition,
+                                                                 TimeNow() + timeout);
 }
 
 bool MockClock::AwaitWithDeadline(absl::Mutex* const mutex, absl::Condition const& condition,
                                   absl::Time const deadline) const {
-  auto const listener = const_cast<MockClock*>(this)->AddListener(mutex, deadline, condition);
-  mutex->Await(absl::Condition(listener.get(), &TimeListener::Eval));
-  return condition.Eval();
+  return const_cast<MockClock*>(this)->AwaitWithDeadlineInternal(mutex, condition, deadline);
 }
 
 void MockClock::SetTime(absl::Time const time) {
-  ListenerSet listeners;
+  std::vector<TimeListener*> listeners;
   {
     absl::MutexLock lock{&mutex_};
     CHECK_GE(time, current_time_) << "MockClock's time cannot move backward!";
     current_time_ = time;
-    listeners_.swap(listeners);
+    listeners = GetDeadlinedListeners();
   }
-  for (auto const& listener : listeners) {
-    listener->Run(time);
+  for (auto const listener : listeners) {
+    listener->Notify();
   }
 }
 
 void MockClock::AdvanceTime(absl::Duration const delta) {
-  absl::Time current_time;
-  ListenerSet listeners;
+  std::vector<TimeListener*> listeners;
   {
     absl::MutexLock lock{&mutex_};
-    current_time = current_time_ += delta;
-    listeners_.swap(listeners);
+    current_time_ += delta;
+    listeners = GetDeadlinedListeners();
   }
-  for (auto const& listener : listeners) {
-    listener->Run(current_time);
+  for (auto const listener : listeners) {
+    listener->Notify();
   }
 }
 
-std::shared_ptr<MockClock::TimeListener> MockClock::AddListener(absl::Mutex* const mutex,
-                                                                absl::Time const deadline,
-                                                                absl::Condition const& condition) {
+bool MockClock::AddListener(absl::Time const deadline, TimeListener* const listener) {
   absl::MutexLock lock{&mutex_};
-  auto const [it, unused] =
-      listeners_.emplace(std::make_shared<TimeListener>(mutex, deadline, condition, current_time_));
-  return *it;
+  if (current_time_ < deadline) {
+    auto const [it, unused] = listeners_.try_emplace(deadline);
+    it->second.emplace(listener);
+    return true;
+  } else {
+    return false;
+  }
 }
 
-void MockClock::RemoveListener(std::shared_ptr<TimeListener> const& listener) {
+bool MockClock::RemoveListener(absl::Time const deadline, TimeListener* const listener) {
   absl::MutexLock lock{&mutex_};
-  listeners_.erase(listener);
+  auto const it = listeners_.find(deadline);
+  if (it != listeners_.end()) {
+    return it->second.erase(listener) > 0;
+  } else {
+    return false;
+  }
+}
+
+std::vector<MockClock::TimeListener*> MockClock::GetDeadlinedListeners() {
+  std::vector<TimeListener*> result;
+  for (auto it = listeners_.begin(); it != listeners_.end() && it->first <= current_time_;
+       it = listeners_.erase(it)) {
+    auto const& listener_set = it->second;
+    result.insert(result.end(), listener_set.begin(), listener_set.end());
+  }
+  return result;
+}
+
+bool MockClock::AwaitWithDeadlineInternal(absl::Mutex* const mutex,
+                                          absl::Condition const& condition,
+                                          absl::Time const deadline) {
+  TimeListener listener{mutex};
+  listener.set_notified(!AddListener(deadline, &listener));
+  mutex->Await(SimpleCondition([&] { return listener.is_notified() || condition.Eval(); }));
+  if (!RemoveListener(deadline, &listener)) {
+    mutex->Await(absl::Condition(&listener, &TimeListener::is_notified));
+  }
+  return !listener.is_notified();
 }
 
 }  // namespace common
