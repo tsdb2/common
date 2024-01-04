@@ -74,7 +74,7 @@ absl::Status Scheduler::WaitUntilAllWorkersAsleep() const {
   }
 }
 
-// Handles start from 1 because 0 is reserved as an invalid handle value.
+// Handle values start at 1 because 0 is reserved as an invalid handle value.
 SequenceNumber Scheduler::Task::handle_generator_{1};
 
 void Scheduler::Worker::Run() {

@@ -231,6 +231,32 @@ TEST_P(SchedulerTaskTest, CancelWhileRunning) {
   exiting.WaitForNotification();
 }
 
+TEST_P(SchedulerTaskTest, CancelInvalid) {
+  bool run = false;
+  auto const handle = ScheduleAt(absl::Seconds(56), [&] { run = true; });
+  ASSERT_NE(handle, 42);
+  clock_.AdvanceTime(absl::Seconds(34));
+  WaitUntilAllWorkersAsleep();
+  ASSERT_FALSE(run);
+  EXPECT_FALSE(scheduler_.Cancel(42));
+  clock_.AdvanceTime(absl::Seconds(78));
+  WaitUntilAllWorkersAsleep();
+  EXPECT_TRUE(run);
+}
+
+TEST_P(SchedulerTaskTest, CancelTwice) {
+  bool run = false;
+  auto const handle = ScheduleAt(absl::Seconds(56), [&] { run = true; });
+  clock_.AdvanceTime(absl::Seconds(34));
+  WaitUntilAllWorkersAsleep();
+  ASSERT_FALSE(run);
+  ASSERT_TRUE(scheduler_.Cancel(handle));
+  EXPECT_FALSE(scheduler_.Cancel(handle));
+  clock_.AdvanceTime(absl::Seconds(78));
+  WaitUntilAllWorkersAsleep();
+  EXPECT_FALSE(run);
+}
+
 TEST_P(SchedulerTaskTest, CancelOne) {
   bool run1 = false;
   bool run2 = false;
@@ -317,6 +343,64 @@ TEST_P(SchedulerTaskTest, BlockCancellationDuringExecution) {
   EXPECT_FALSE(cancelled.HasBeenNotified());
   unblock.Notify();
   canceller.join();
+}
+
+TEST_P(SchedulerTaskTest, Recurring) {
+  int runs = 0;
+  scheduler_.ScheduleRecurring([&] { ++runs; }, absl::Seconds(34));
+  WaitUntilAllWorkersAsleep();
+  EXPECT_EQ(runs, 1);
+  clock_.AdvanceTime(absl::Seconds(30));
+  WaitUntilAllWorkersAsleep();
+  EXPECT_EQ(runs, 1);
+  clock_.AdvanceTime(absl::Seconds(4));
+  WaitUntilAllWorkersAsleep();
+  EXPECT_EQ(runs, 2);
+  clock_.AdvanceTime(absl::Seconds(34));
+  WaitUntilAllWorkersAsleep();
+  EXPECT_EQ(runs, 3);
+}
+
+TEST_P(SchedulerTaskTest, RecurringWithDelay) {
+  int runs = 0;
+  scheduler_.ScheduleRecurringIn([&] { ++runs; }, /*delay=*/absl::Seconds(34),
+                                 /*period=*/absl::Seconds(56));
+  WaitUntilAllWorkersAsleep();
+  EXPECT_EQ(runs, 0);
+  clock_.AdvanceTime(absl::Seconds(30));
+  WaitUntilAllWorkersAsleep();
+  EXPECT_EQ(runs, 0);
+  clock_.AdvanceTime(absl::Seconds(4));
+  WaitUntilAllWorkersAsleep();
+  EXPECT_EQ(runs, 1);
+  clock_.AdvanceTime(absl::Seconds(50));
+  WaitUntilAllWorkersAsleep();
+  EXPECT_EQ(runs, 1);
+  clock_.AdvanceTime(absl::Seconds(6));
+  WaitUntilAllWorkersAsleep();
+  EXPECT_EQ(runs, 2);
+  clock_.AdvanceTime(absl::Seconds(56));
+  WaitUntilAllWorkersAsleep();
+  EXPECT_EQ(runs, 3);
+}
+
+TEST_P(SchedulerTaskTest, CancelRecurring) {
+  int runs = 0;
+  auto const handle = scheduler_.ScheduleRecurringIn([&] { ++runs; }, /*delay=*/absl::Seconds(34),
+                                                     /*period=*/absl::Seconds(56));
+  clock_.AdvanceTime(absl::Seconds(34));
+  WaitUntilAllWorkersAsleep();
+  ASSERT_EQ(runs, 1);
+  clock_.AdvanceTime(absl::Seconds(56));
+  WaitUntilAllWorkersAsleep();
+  ASSERT_EQ(runs, 2);
+  scheduler_.Cancel(handle);
+  clock_.AdvanceTime(absl::Seconds(56));
+  WaitUntilAllWorkersAsleep();
+  EXPECT_EQ(runs, 2);
+  clock_.AdvanceTime(absl::Seconds(56));
+  WaitUntilAllWorkersAsleep();
+  EXPECT_EQ(runs, 2);
 }
 
 // TODO
