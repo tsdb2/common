@@ -196,6 +196,129 @@ TEST_P(SchedulerTaskTest, PreemptNPlusTwo) {
   EXPECT_EQ(run, GetParam() + 2);
 }
 
+TEST_P(SchedulerTaskTest, CancelBefore) {
+  bool run = false;
+  auto const handle = ScheduleAt(absl::Seconds(56), [&] { run = true; });
+  clock_.AdvanceTime(absl::Seconds(34));
+  WaitUntilAllWorkersAsleep();
+  ASSERT_FALSE(run);
+  EXPECT_TRUE(scheduler_.Cancel(handle));
+  clock_.AdvanceTime(absl::Seconds(78));
+  WaitUntilAllWorkersAsleep();
+  EXPECT_FALSE(run);
+}
+
+TEST_P(SchedulerTaskTest, CancelAfter) {
+  auto const handle = ScheduleAt(absl::Seconds(34), [] {});
+  clock_.AdvanceTime(absl::Seconds(56));
+  WaitUntilAllWorkersAsleep();
+  EXPECT_FALSE(scheduler_.Cancel(handle));
+}
+
+TEST_P(SchedulerTaskTest, CancelWhileRunning) {
+  absl::Notification started;
+  absl::Notification unblock;
+  absl::Notification exiting;
+  auto const handle = ScheduleAt(absl::Seconds(34), [&] {
+    started.Notify();
+    unblock.WaitForNotification();
+    exiting.Notify();
+  });
+  clock_.AdvanceTime(absl::Seconds(56));
+  started.WaitForNotification();
+  EXPECT_FALSE(scheduler_.Cancel(handle));
+  unblock.Notify();
+  exiting.WaitForNotification();
+}
+
+TEST_P(SchedulerTaskTest, CancelOne) {
+  bool run1 = false;
+  bool run2 = false;
+  ScheduleAt(absl::Seconds(56), [&] { run1 = true; });
+  auto const handle = ScheduleAt(absl::Seconds(56), [&] { run2 = true; });
+  clock_.AdvanceTime(absl::Seconds(34));
+  WaitUntilAllWorkersAsleep();
+  ASSERT_TRUE(scheduler_.Cancel(handle));
+  clock_.AdvanceTime(absl::Seconds(78));
+  WaitUntilAllWorkersAsleep();
+  EXPECT_TRUE(run1);
+  EXPECT_FALSE(run2);
+}
+
+TEST_P(SchedulerTaskTest, CancelBoth) {
+  bool run1 = false;
+  bool run2 = false;
+  auto const handle1 = ScheduleAt(absl::Seconds(56), [&] { run1 = true; });
+  auto const handle2 = ScheduleAt(absl::Seconds(56), [&] { run2 = true; });
+  clock_.AdvanceTime(absl::Seconds(34));
+  WaitUntilAllWorkersAsleep();
+  ASSERT_TRUE(scheduler_.Cancel(handle1));
+  ASSERT_TRUE(scheduler_.Cancel(handle2));
+  clock_.AdvanceTime(absl::Seconds(78));
+  WaitUntilAllWorkersAsleep();
+  EXPECT_FALSE(run1);
+  EXPECT_FALSE(run2);
+}
+
+TEST_P(SchedulerTaskTest, PreemptionCancelled) {
+  bool run1 = false;
+  bool run2 = false;
+  ScheduleAt(absl::Seconds(78), [&] { run1 = true; });
+  auto const handle = ScheduleAt(absl::Seconds(56), [&] { run2 = true; });
+  clock_.AdvanceTime(absl::Seconds(17));
+  WaitUntilAllWorkersAsleep();
+  ASSERT_TRUE(scheduler_.Cancel(handle));
+  clock_.AdvanceTime(absl::Seconds(17));
+  WaitUntilAllWorkersAsleep();
+  EXPECT_FALSE(run1);
+  EXPECT_FALSE(run2);
+  clock_.AdvanceTime(absl::Seconds(90));
+  WaitUntilAllWorkersAsleep();
+  EXPECT_TRUE(run1);
+  EXPECT_FALSE(run2);
+}
+
+TEST_P(SchedulerTaskTest, BlockingCancelBefore) {
+  bool run = false;
+  auto const handle = ScheduleAt(absl::Seconds(56), [&] { run = true; });
+  clock_.AdvanceTime(absl::Seconds(34));
+  WaitUntilAllWorkersAsleep();
+  ASSERT_FALSE(run);
+  EXPECT_TRUE(scheduler_.BlockingCancel(handle));
+  clock_.AdvanceTime(absl::Seconds(78));
+  WaitUntilAllWorkersAsleep();
+  EXPECT_FALSE(run);
+}
+
+TEST_P(SchedulerTaskTest, BlockingCancelAfter) {
+  auto const handle = ScheduleAt(absl::Seconds(34), [] {});
+  clock_.AdvanceTime(absl::Seconds(56));
+  WaitUntilAllWorkersAsleep();
+  EXPECT_FALSE(scheduler_.BlockingCancel(handle));
+}
+
+TEST_P(SchedulerTaskTest, BlockCancellationDuringExecution) {
+  absl::Notification started;
+  absl::Notification unblock;
+  absl::Notification cancelling;
+  absl::Notification cancelled;
+  auto const handle = ScheduleAt(absl::Seconds(34), [&] {
+    started.Notify();
+    unblock.WaitForNotification();
+  });
+  clock_.AdvanceTime(absl::Seconds(56));
+  started.WaitForNotification();
+  std::thread canceller{[&] {
+    cancelling.Notify();
+    EXPECT_FALSE(scheduler_.BlockingCancel(handle));
+    cancelled.Notify();
+  }};
+  cancelling.WaitForNotification();
+  EXPECT_FALSE(cancelled.HasBeenNotified());
+  unblock.Notify();
+  canceller.join();
+}
+
 // TODO
 
 INSTANTIATE_TEST_SUITE_P(SchedulerTaskTest, SchedulerTaskTest, ::testing::Range(1, 10));
