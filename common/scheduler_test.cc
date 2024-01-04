@@ -403,7 +403,123 @@ TEST_P(SchedulerTaskTest, CancelRecurring) {
   EXPECT_EQ(runs, 2);
 }
 
-// TODO
+TEST_P(SchedulerTaskTest, EmptyScopedHandle) {
+  Scheduler::ScopedHandle handle;
+  EXPECT_TRUE(handle.empty());
+  EXPECT_FALSE(handle.operator bool());
+}
+
+TEST_P(SchedulerTaskTest, CancelledByScopedHandle) {
+  bool run = false;
+  {
+    auto const handle = scheduler_.ScheduleScopedIn([&] { run = true; }, absl::Seconds(34));
+    EXPECT_FALSE(handle.empty());
+    EXPECT_TRUE(handle.operator bool());
+    clock_.AdvanceTime(absl::Seconds(30));
+    WaitUntilAllWorkersAsleep();
+  }
+  clock_.AdvanceTime(absl::Seconds(4));
+  WaitUntilAllWorkersAsleep();
+  EXPECT_FALSE(run);
+}
+
+TEST_P(SchedulerTaskTest, CancelScopedHandle) {
+  bool run = false;
+  auto handle = scheduler_.ScheduleScopedIn([&] { run = true; }, absl::Seconds(34));
+  clock_.AdvanceTime(absl::Seconds(30));
+  WaitUntilAllWorkersAsleep();
+  EXPECT_TRUE(handle.Cancel());
+  clock_.AdvanceTime(absl::Seconds(4));
+  WaitUntilAllWorkersAsleep();
+  EXPECT_FALSE(run);
+}
+
+TEST_P(SchedulerTaskTest, BlockingCancelScopedHandle) {
+  absl::Notification started;
+  absl::Notification unblock;
+  absl::Notification cancelling;
+  absl::Notification cancelled;
+  auto handle = scheduler_.ScheduleScopedIn(
+      [&] {
+        started.Notify();
+        unblock.WaitForNotification();
+      },
+      absl::Seconds(34));
+  clock_.AdvanceTime(absl::Seconds(56));
+  started.WaitForNotification();
+  std::thread canceller{[&] {
+    cancelling.Notify();
+    EXPECT_FALSE(handle.BlockingCancel());
+    cancelled.Notify();
+  }};
+  cancelling.WaitForNotification();
+  EXPECT_FALSE(cancelled.HasBeenNotified());
+  unblock.Notify();
+  canceller.join();
+}
+
+TEST_P(SchedulerTaskTest, MoveConstructScopedHandle) {
+  bool run = false;
+  auto handle = scheduler_.ScheduleScopedIn([&] { run = true; }, absl::Seconds(34));
+  clock_.AdvanceTime(absl::Seconds(30));
+  WaitUntilAllWorkersAsleep();
+  ASSERT_FALSE(run);
+  {
+    Scheduler::ScopedHandle{std::move(handle)};
+    EXPECT_TRUE(handle.empty());
+  }
+  clock_.AdvanceTime(absl::Seconds(4));
+  WaitUntilAllWorkersAsleep();
+  EXPECT_FALSE(run);
+}
+
+TEST_P(SchedulerTaskTest, MoveAssignScopedHandle) {
+  bool run = false;
+  Scheduler::ScopedHandle h1;
+  {
+    auto h2 = scheduler_.ScheduleScopedIn([&] { run = true; }, absl::Seconds(34));
+    clock_.AdvanceTime(absl::Seconds(30));
+    WaitUntilAllWorkersAsleep();
+    ASSERT_FALSE(run);
+    h1 = std::move(h2);
+    EXPECT_TRUE(h2.empty());
+  }
+  clock_.AdvanceTime(absl::Seconds(4));
+  WaitUntilAllWorkersAsleep();
+  EXPECT_TRUE(run);
+}
+
+TEST_P(SchedulerTaskTest, CancelEmptyScopedHandle) {
+  bool run = false;
+  Scheduler::ScopedHandle h1;
+  {
+    auto h2 = scheduler_.ScheduleScopedIn([&] { run = true; }, absl::Seconds(34));
+    clock_.AdvanceTime(absl::Seconds(30));
+    WaitUntilAllWorkersAsleep();
+    ASSERT_FALSE(run);
+    h1 = std::move(h2);
+    EXPECT_FALSE(h2.Cancel());
+  }
+  clock_.AdvanceTime(absl::Seconds(4));
+  WaitUntilAllWorkersAsleep();
+  EXPECT_TRUE(run);
+}
+
+TEST_P(SchedulerTaskTest, BlockingCancelEmptyScopedHandle) {
+  bool run = false;
+  Scheduler::ScopedHandle h1;
+  {
+    auto h2 = scheduler_.ScheduleScopedIn([&] { run = true; }, absl::Seconds(34));
+    clock_.AdvanceTime(absl::Seconds(30));
+    WaitUntilAllWorkersAsleep();
+    ASSERT_FALSE(run);
+    h1 = std::move(h2);
+    EXPECT_FALSE(h2.BlockingCancel());
+  }
+  clock_.AdvanceTime(absl::Seconds(4));
+  WaitUntilAllWorkersAsleep();
+  EXPECT_TRUE(run);
+}
 
 INSTANTIATE_TEST_SUITE_P(SchedulerTaskTest, SchedulerTaskTest, ::testing::Range(1, 10));
 

@@ -124,22 +124,14 @@ class Scheduler {
     }
 
     // Triggers non-blocking cancellation of the managed task and empties this ScopedHandle.
-    void Cancel() {
-      if (scheduler_) {
-        scheduler_->Cancel(Release());
-      }
-    }
+    bool Cancel() { return scheduler_ != nullptr && scheduler_->Cancel(Release()); }
 
     // Triggers blocking cancellation of the managed task and empties this ScopedHandle. Usually you
     // don't need to call this method because the `~ScopedHandle` destructor does it for you.
     //
     // WARNING: calling this method inside the callback of a task scheduled in the `Scheduler` will
     // cause a deadlock.
-    void BlockingCancel() {
-      if (scheduler_) {
-        scheduler_->BlockingCancel(Release());
-      }
-    }
+    bool BlockingCancel() { return scheduler_ != nullptr && scheduler_->BlockingCancel(Release()); }
 
    private:
     friend class Scheduler;
