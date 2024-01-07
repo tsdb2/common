@@ -39,8 +39,7 @@ void Scheduler::Stop() {
       state_ = State::STOPPED;
       return;
     } else if (state_ > State::STARTED) {
-      mutex_.Await(SimpleCondition(
-          [this]() ABSL_SHARED_LOCKS_REQUIRED(mutex_) { return state_ == State::STOPPED; }));
+      mutex_.Await(stopped_condition_);
       return;
     } else {
       workers_.swap(workers);
@@ -143,12 +142,8 @@ absl::StatusOr<Scheduler::Task *> Scheduler::FetchTask(Worker *const worker, Tas
       tasks_.erase(previous->handle());
     }
   }
-  auto const queue_not_empty_condition =
-      SimpleCondition([this]() ABSL_SHARED_LOCKS_REQUIRED(mutex_) {
-        return state_ > State::STARTED || !queue_.empty();
-      });
   while (true) {
-    mutex_.Await(queue_not_empty_condition);
+    mutex_.Await(queue_not_empty_condition_);
     if (state_ > State::STARTED) {
       return absl::AbortedError("");
     }

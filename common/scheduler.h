@@ -468,6 +468,12 @@ class Scheduler {
   Scheduler(Scheduler &&) = delete;
   Scheduler &operator=(Scheduler &&) = delete;
 
+  bool stopped() const ABSL_SHARED_LOCKS_REQUIRED(mutex_) { return state_ == State::STOPPED; }
+
+  bool queue_not_empty() const ABSL_SHARED_LOCKS_REQUIRED(mutex_) {
+    return state_ > State::STARTED || !queue_.empty();
+  }
+
   Handle ScheduleInternal(Callback callback, absl::Time due_time,
                           std::optional<absl::Duration> period) ABSL_LOCKS_EXCLUDED(mutex_);
 
@@ -479,6 +485,9 @@ class Scheduler {
   Clock const *const clock_;
 
   absl::Mutex mutable mutex_;
+
+  absl::Condition stopped_condition_{this, &Scheduler::stopped};
+  absl::Condition queue_not_empty_condition_{this, &Scheduler::queue_not_empty};
 
   // Contains all tasks, indexed by handle.
   absl::node_hash_set<Task, Task::Hash, Task::Equals> tasks_ ABSL_GUARDED_BY(mutex_);
