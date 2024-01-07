@@ -484,10 +484,10 @@ class Scheduler {
   Options const options_;
   Clock const *const clock_;
 
-  absl::Mutex mutable mutex_;
+  absl::Condition const stopped_condition_{this, &Scheduler::stopped};
+  absl::Condition const queue_not_empty_condition_{this, &Scheduler::queue_not_empty};
 
-  absl::Condition stopped_condition_{this, &Scheduler::stopped};
-  absl::Condition queue_not_empty_condition_{this, &Scheduler::queue_not_empty};
+  absl::Mutex mutable mutex_;
 
   // Contains all tasks, indexed by handle.
   absl::node_hash_set<Task, Task::Hash, Task::Equals> tasks_ ABSL_GUARDED_BY(mutex_);
